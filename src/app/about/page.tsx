@@ -1,33 +1,60 @@
+'use client'
+
 import BottomNav from '../../components/BottomNav'
-import Link from 'next/link'
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen bg-black text-white px-6 pb-24 pt-8">
-      <section className="mx-auto max-w-md space-y-6">
-        <img
-  src="/branding/taelf-logo.png"
-  alt="Temitope Ajijola Empowerment and Leadership Foundation"
-  className="mx-auto w-60 rounded-4xl border border-zinc-400 bg-white p-1"
-/>
-        <h1 className="text-3xl font-bold">About A MADE MAN</h1>
+    <main className="min-h-screen bg-black px-6 pb-24 pt-8 text-white">
+      <section className="mx-auto max-w-md space-y-8">
+        <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
+          <img
+            src="/branding/taelf-hero.png"
+            alt="Temitope Ajijola Empowerment and Leadership Foundation"
+            className="aspect-video w-full object-cover object-center"
+          />
+        </div>
 
-        <p className="text-zinc-400">
-          A MADE MAN is a foundation and movement committed to building men of
-          discipline, responsibility, integrity, purpose, and legacy.
-        </p>
+        <div>
+          <p className="text-sm uppercase tracking-[0.4em] text-zinc-500">
+            About
+          </p>
 
-        <div className="rounded-3xl border border-zinc-800 p-5">
-          <h2 className="text-xl font-semibold">Conference History</h2>
-          <p className="mt-2 text-zinc-400">
-            Two conferences. 500+ men impacted. More to come.
+          <h1 className="mt-4 text-5xl font-black leading-none">
+            About A MADE MAN
+          </h1>
+
+          <p className="mt-6 leading-8 text-zinc-300">
+            A MADE MAN is a movement committed to building men of discipline,
+            responsibility, integrity, purpose, and legacy.
+          </p>
+
+          <p className="mt-5 leading-8 text-zinc-400">
+            Powered by the Temitope Ajijola Empowerment and Leadership
+            Foundation, this platform exists to equip men through principles,
+            conversations, media, community, reflection, and intentional growth.
           </p>
         </div>
 
-        <Link href="/admin" className="block text-sm text-zinc-500 underline">
-          Admin Access
-        </Link>
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-2xl font-bold">Conference History</h2>
+
+          <p className="mt-4 leading-8 text-zinc-400">
+            Two conferences. 500+ men impacted. More conversations, more
+            resources, and more transformative gatherings are being built.
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-2xl font-bold">The Mandate</h2>
+
+          <p className="mt-4 leading-8 text-zinc-400">
+            To create spaces where men are challenged, strengthened, corrected,
+            equipped, and reminded that manhood is not performance — it is
+            responsibility lived with conviction.
+          </p>
+        </div>
       </section>
+
       <BottomNav />
     </main>
   )

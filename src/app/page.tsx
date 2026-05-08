@@ -116,10 +116,10 @@ export default function HomePage() {
           </div>
 
           {hero && (
-           <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
+          <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
   <img
-    src="/branding/taelf-hero.png"
-    alt="TAE&LF"
+    src="/branding/made-man-hero.jpg"
+    alt="I Am A Made Man"
     className="aspect-video w-full object-cover object-center"
   />
 </div>
