@@ -95,17 +95,17 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <section className="px-6 pb-16 pt-8">
-        <div className="mx-auto max-w-md space-y-8">
+      <section className="px-6 pb-14 pt-8">
+        <div className="mx-auto max-w-md space-y-7">
           <div className="flex items-center gap-4">
             <img
               src="/branding/made-logo.png"
               alt="A MADE MAN"
-              className="h-16 w-auto"
+              className="h-14 w-auto"
             />
 
             <div>
-              <p className="text-sm uppercase tracking-[0.5em] text-zinc-400">
+              <p className="text-sm uppercase tracking-[0.45em] text-zinc-400">
                 A MADE MAN
               </p>
 
@@ -116,25 +116,13 @@ export default function HomePage() {
           </div>
 
           {hero && (
-            <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
-              {heroEmbed ? (
-                <div className="aspect-[4/5] w-full">
-                  <iframe
-                    src={heroEmbed}
-                    title={hero.title}
-                    className="h-full w-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                </div>
-              ) : hero.thumbnail_url ? (
-                <img
-                  src={hero.thumbnail_url}
-                  alt={hero.title}
-                  className="aspect-[4/5] w-full object-cover object-top"
-                />
-              ) : null}
-            </div>
+           <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
+  <img
+    src="/branding/taelf-hero.png"
+    alt="TAE&LF"
+    className="aspect-video w-full object-cover object-center"
+  />
+</div>
           )}
 
           <div>
