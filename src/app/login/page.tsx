@@ -34,11 +34,21 @@ export default function LoginPage() {
     setLoading(true)
     setMessage('Creating account...')
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
+   const { data, error } = await supabase.auth.signUp({
+  email,
+  password,
+})
 
+if (!error && data.user) {
+  const defaultName = email.split('@')[0]
+
+  await supabase.from('profiles').upsert({
+    id: data.user.id,
+    email,
+    display_name: defaultName,
+    streak_count: 1,
+  })
+}
     if (error) {
       setMessage(error.message)
       setLoading(false)
