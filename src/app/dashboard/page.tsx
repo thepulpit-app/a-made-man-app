@@ -28,7 +28,7 @@ type Resource = {
 }
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, initialized } = useAuth()
   const router = useRouter()
 
   const [principle, setPrinciple] = useState<Principle | null>(null)
@@ -38,11 +38,11 @@ export default function DashboardPage() {
   const [featuredConversation, setFeaturedConversation] =
     useState<Resource | null>(null)
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login')
-    }
-  }, [user, loading, router])
+ useEffect(() => {
+  if (initialized && !loading && !user) {
+    router.push('/login')
+  }
+}, [user, loading, initialized, router])
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -76,7 +76,7 @@ export default function DashboardPage() {
         .from('profiles')
         .select('streak_count, display_name')
         .eq('id', user.id)
-        .single()
+       .maybeSingle()
 
       if (profileData) {
         setProfile(profileData)
@@ -100,7 +100,7 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [user])
 
-  if (loading) return null
+  if (loading || !initialized) return null
 
   const featuredEmbed = getMediaEmbedUrl(
     featuredConversation?.url || null

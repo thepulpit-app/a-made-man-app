@@ -41,7 +41,11 @@ function MediaFrame({
         <img
           src={item.thumbnail_url}
           alt={item.title}
-          className={tall ? 'aspect-[9/16] w-full object-cover' : 'h-52 w-full object-cover'}
+          className={
+            tall
+              ? 'aspect-[9/16] w-full object-cover'
+              : 'h-56 w-full object-cover'
+          }
         />
       ) : null}
 
@@ -91,50 +95,54 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <section className="relative h-screen overflow-hidden">
-        {heroEmbed && (
-          <div className="absolute inset-0 opacity-45">
-            <iframe
-              src={heroEmbed}
-              title={hero?.title || 'A MADE MAN Hero'}
-              className="h-full w-full scale-150"
-              allow="autoplay; encrypted-media"
-              allowFullScreen
+      <section className="px-6 pb-16 pt-8">
+        <div className="mx-auto max-w-md space-y-8">
+          <div className="flex items-center gap-4">
+            <img
+              src="/branding/made-logo.png"
+              alt="A MADE MAN"
+              className="h-16 w-auto"
             />
-          </div>
-        )}
 
-        {!heroEmbed && hero?.thumbnail_url && (
-          <img
-            src={hero.thumbnail_url}
-            alt={hero.title}
-            className="absolute inset-0 h-full w-full object-cover opacity-45"
-          />
-        )}
+            <div>
+              <p className="text-sm uppercase tracking-[0.5em] text-zinc-400">
+                A MADE MAN
+              </p>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/30" />
-
-        <div className="relative z-10 flex h-full flex-col justify-end px-6 pb-20">
-          <div className="mx-auto w-full max-w-md">
-            <div className="flex items-center gap-4">
-              <img
-                src="/branding/made-logo.png"
-                alt="A MADE MAN"
-                className="h-16 w-auto"
-              />
-
-              <div>
-                <p className="text-sm uppercase tracking-[0.5em] text-zinc-400">
-                  A MADE MAN
-                </p>
-
-                <p className="text-xs text-zinc-500">
-                  MEN. ADVOCACY. DIRECTION. EXCELLENCE.
-                </p>
-              </div>
+              <p className="text-xs text-zinc-500">
+                MEN. ADVOCACY. DIRECTION. EXCELLENCE.
+              </p>
             </div>
+          </div>
 
-            <h1 className="mt-8 text-6xl font-black leading-none">
+          {hero && (
+            <div className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
+              {heroEmbed ? (
+                <div className="aspect-[4/5] w-full">
+                  <iframe
+                    src={heroEmbed}
+                    title={hero.title}
+                    className="h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              ) : hero.thumbnail_url ? (
+                <img
+                  src={hero.thumbnail_url}
+                  alt={hero.title}
+                  className="aspect-[4/5] w-full object-cover object-top"
+                />
+              ) : null}
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm uppercase tracking-[0.35em] text-zinc-500">
+              The Movement
+            </p>
+
+            <h1 className="mt-4 text-5xl font-black leading-none">
               Build the man you were meant to become.
             </h1>
 
@@ -143,25 +151,32 @@ export default function HomePage() {
             </p>
 
             {hero && (
-              <div className="mt-6 border-l-2 border-zinc-600 pl-4">
-                <p className="text-sm uppercase tracking-[0.25em] text-zinc-500">
-                  Now Featured
+              <div className="mt-6 border-l-2 border-zinc-700 pl-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">
+                  Featured
                 </p>
+
                 <p className="mt-2 text-lg font-semibold">{hero.title}</p>
+
+                {hero.description && (
+                  <p className="mt-2 text-sm text-zinc-400">
+                    {hero.description}
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="mt-10 flex gap-4">
+            <div className="mt-10 grid grid-cols-2 gap-4">
               <Link
                 href="/login"
-                className="rounded-2xl bg-white px-6 py-4 font-semibold text-black"
+                className="rounded-2xl bg-white px-6 py-4 text-center font-semibold text-black"
               >
                 Enter App
               </Link>
 
               <Link
                 href="/resources"
-                className="rounded-2xl border border-zinc-700 px-6 py-4 font-semibold"
+                className="rounded-2xl border border-zinc-700 px-6 py-4 text-center font-semibold"
               >
                 Watch
               </Link>
