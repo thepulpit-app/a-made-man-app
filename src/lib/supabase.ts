@@ -9,5 +9,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storageKey: 'amademan-auth',
+    // FIX: explicitly point to localStorage with SSR guard
+    // Without this, Next.js App Router initialises the client server-side
+    // where window is undefined — Supabase silently falls back to
+    // in-memory storage, so the session disappears when the tab closes
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
 })
