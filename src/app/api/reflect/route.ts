@@ -2,20 +2,16 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
-  // Catch missing API key immediately with a clear message
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('[reflect] ANTHROPIC_API_KEY is not set in environment variables')
-    return NextResponse.json(
-      { error: 'Server configuration error. Please contact support.' },
-      { status: 500 }
-    )
-  }
-
-  const client = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  })
-
   try {
+    // Check API key before anything else
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('[reflect] ANTHROPIC_API_KEY is missing from environment variables')
+      return NextResponse.json(
+        { error: 'Server configuration error.' },
+        { status: 500 }
+      )
+    }
+
     const { topic } = await req.json()
 
     if (!topic || typeof topic !== 'string') {
@@ -25,8 +21,13 @@ export async function POST(req: Request) {
       )
     }
 
+    // Client created inside the function — avoids module-level init errors
+    const client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    })
+
     const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: `
 You are the voice of A MADE MAN.
@@ -95,9 +96,7 @@ Do not explain. Do not ramble. Deliver impact.
     return NextResponse.json({ reflection })
 
   } catch (error: any) {
-    // Log the full error server-side so it appears in Vercel logs
-    console.error('[reflect] API error:', error?.message || error)
-
+    console.error('[reflect] Error:', error?.status, error?.message || error)
     return NextResponse.json(
       { error: 'Failed to generate reflection. Please try again.' },
       { status: 500 }
