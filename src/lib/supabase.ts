@@ -1,18 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// FIX: Use createBrowserClient from @supabase/ssr instead of createClient
+// from @supabase/supabase-js. This handles session persistence correctly
+// in Next.js App Router by using cookies, which work across server and
+// client contexts — unlike localStorage which is unavailable server-side.
+//
+// Run this before deploying: npm install @supabase/ssr
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storageKey: 'amademan-auth',
-    // FIX: explicitly point to localStorage with SSR guard
-    // Without this, Next.js App Router initialises the client server-side
-    // where window is undefined — Supabase silently falls back to
-    // in-memory storage, so the session disappears when the tab closes
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-  },
-})
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)

@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
+// FIX: Uses getUser() instead of getSession() for reliability with @supabase/ssr.
+// getSession() reads from cache and can return stale/null data after a tab close.
+// getUser() verifies the session against the server — always accurate.
+
 export function useAuth() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -12,11 +16,11 @@ export function useAuth() {
     let mounted = true
 
     const loadSession = async () => {
-      const { data } = await supabase.auth.getSession()
+      const { data: { user } } = await supabase.auth.getUser()
 
       if (!mounted) return
 
-      setUser(data.session?.user ?? null)
+      setUser(user ?? null)
       setLoading(false)
       setInitialized(true)
     }
