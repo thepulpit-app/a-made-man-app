@@ -1,15 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 
-// FIX: Switched from OpenAI (gpt-4o-mini) to Anthropic Claude
-// Run: npm install @anthropic-ai/sdk
-// Add ANTHROPIC_API_KEY to your .env.local
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
-
 export async function POST(req: Request) {
+  // Catch missing API key immediately with a clear message
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[reflect] ANTHROPIC_API_KEY is not set in environment variables')
+    return NextResponse.json(
+      { error: 'Server configuration error. Please contact support.' },
+      { status: 500 }
+    )
+  }
+
+  const client = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  })
+
   try {
     const { topic } = await req.json()
 
@@ -88,11 +93,13 @@ Do not explain. Do not ramble. Deliver impact.
         : 'No reflection generated.'
 
     return NextResponse.json({ reflection })
-  } catch (error) {
-    console.error(error)
+
+  } catch (error: any) {
+    // Log the full error server-side so it appears in Vercel logs
+    console.error('[reflect] API error:', error?.message || error)
 
     return NextResponse.json(
-      { error: 'Failed to generate reflection.' },
+      { error: 'Failed to generate reflection. Please try again.' },
       { status: 500 }
     )
   }
