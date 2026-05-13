@@ -41,9 +41,24 @@ export default function CommunityPage() {
       return
     }
 
+    // FIX: Fetch display_name from profiles instead of using email
+    let displayName = 'A MADE MAN Member'
+
+    if (user) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profileData?.display_name) {
+        displayName = profileData.display_name
+      }
+    }
+
     const { error } = await supabase.from('community_posts').insert([
       {
-        author_name: user?.email || 'A MADE MAN Member',
+        author_name: displayName,
         content,
       },
     ])

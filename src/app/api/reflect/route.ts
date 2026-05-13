@@ -1,8 +1,12 @@
-import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 import { NextResponse } from 'next/server'
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+// FIX: Switched from OpenAI (gpt-4o-mini) to Anthropic Claude
+// Run: npm install @anthropic-ai/sdk
+// Add ANTHROPIC_API_KEY to your .env.local
+
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
 export async function POST(req: Request) {
@@ -16,12 +20,10 @@ export async function POST(req: Request) {
       )
     }
 
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-    messages: [
-  {
-    role: 'system',
-    content: `
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: `
 You are the voice of A MADE MAN.
 
 Write like a disciplined, experienced man speaking truth to other men — firm, wise, and grounded, but with occasional dry humour.
@@ -71,17 +73,19 @@ Style:
 End with a strong closing line that reinforces identity.
 
 Do not explain. Do not ramble. Deliver impact.
-    `,
-  },
-  {
-    role: 'user',
-    content: `Write a reflection for men on this topic: ${topic}`,
-  },
-]
+      `,
+      messages: [
+        {
+          role: 'user',
+          content: `Write a reflection for men on this topic: ${topic}`,
+        },
+      ],
     })
 
     const reflection =
-      response.choices[0]?.message?.content || 'No reflection generated.'
+      response.content[0].type === 'text'
+        ? response.content[0].text
+        : 'No reflection generated.'
 
     return NextResponse.json({ reflection })
   } catch (error) {

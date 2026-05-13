@@ -27,47 +27,50 @@ type Resource = {
   display_section: string | null
 }
 
+// FIX: Use day-of-year (1–365) instead of day-of-month (1–31)
+// This gives a full year of unique daily principles before any repeat
+function getDayOfYear(): number {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const diff = now.getTime() - start.getTime()
+  const oneDay = 1000 * 60 * 60 * 24
+  return Math.floor(diff / oneDay)
+}
+
 export default function DashboardPage() {
   const { user, loading, initialized } = useAuth()
   const router = useRouter()
 
   const [principle, setPrinciple] = useState<Principle | null>(null)
-
   const [profile, setProfile] = useState<Profile | null>(null)
-
   const [featuredConversation, setFeaturedConversation] =
     useState<Resource | null>(null)
 
- useEffect(() => {
-  if (initialized && !loading && !user) {
-    router.push('/login')
-  }
-}, [user, loading, initialized, router])
+  useEffect(() => {
+    if (initialized && !loading && !user) {
+      router.push('/login')
+    }
+  }, [user, loading, initialized, router])
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user) return
 
       //------------------------------------
-      // RANDOM DAILY PRINCIPLE
+      // DAILY PRINCIPLE — day-of-year rotation
       //------------------------------------
-
       const { data: principles } = await supabase
         .from('daily_principles')
         .select('*')
 
       if (principles && principles.length > 0) {
-        const today = new Date().getDate()
-
-        const randomIndex = today % principles.length
-
-        setPrinciple(principles[randomIndex])
+        const dayIndex = getDayOfYear() % principles.length
+        setPrinciple(principles[dayIndex])
       }
 
       //------------------------------------
       // STREAK SYSTEM
       //------------------------------------
-
       await supabase.rpc('update_user_streak', {
         user_uuid: user.id,
       })
@@ -76,7 +79,7 @@ export default function DashboardPage() {
         .from('profiles')
         .select('streak_count, display_name')
         .eq('id', user.id)
-       .maybeSingle()
+        .maybeSingle()
 
       if (profileData) {
         setProfile(profileData)
@@ -85,7 +88,6 @@ export default function DashboardPage() {
       //------------------------------------
       // FEATURED CONVERSATION
       //------------------------------------
-
       const { data: media } = await supabase
         .from('resources')
         .select('*')
@@ -171,7 +173,7 @@ export default function DashboardPage() {
 
         <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
-            Today’s Principle
+            Today's Principle
           </p>
 
           <h2 className="mt-4 text-3xl font-bold">
@@ -197,14 +199,13 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {!featuredEmbed &&
-              featuredConversation.thumbnail_url && (
-                <img
-                  src={featuredConversation.thumbnail_url}
-                  alt={featuredConversation.title}
-                  className="h-60 w-full object-cover"
-                />
-              )}
+            {!featuredEmbed && featuredConversation.thumbnail_url && (
+              <img
+                src={featuredConversation.thumbnail_url}
+                alt={featuredConversation.title}
+                className="h-60 w-full object-cover"
+              />
+            )}
 
             <div className="space-y-3 p-6">
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">

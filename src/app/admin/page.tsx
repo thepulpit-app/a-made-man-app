@@ -2,8 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
+import { supabase } from '../../lib/supabase'
+import BottomNav from '../../components/BottomNav'
+import { getMediaEmbedUrl } from '../../lib/media'
+
+type Principle = {
+  title: string
+  content: string
+}
+
+type Profile = {
+  streak_count: number | null
+  display_name: string | null
+}
 
 type Resource = {
   id: string
@@ -12,401 +24,239 @@ type Resource = {
   type: string
   url: string | null
   thumbnail_url: string | null
-  is_featured: boolean | null
   display_section: string | null
 }
 
-export default function AdminPage() {
-  const { user, loading } = useAuth()
+// FIX: Use day-of-year (1–365) instead of day-of-month (1–31)
+// This gives a full year of unique daily principles before any repeat
+function getDayOfYear(): number {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const diff = now.getTime() - start.getTime()
+  const oneDay = 1000 * 60 * 60 * 24
+  return Math.floor(diff / oneDay)
+}
+
+export default function DashboardPage() {
+  const { user, loading, initialized } = useAuth()
   const router = useRouter()
 
-  const adminEmails = ['topeajijola@hotmail.com']
-
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-
-  const [resourceTitle, setResourceTitle] = useState('')
-  const [resourceDescription, setResourceDescription] = useState('')
-  const [resourceUrl, setResourceUrl] = useState('')
-  const [resourceThumbnailUrl, setResourceThumbnailUrl] = useState('')
-  const [resourceType, setResourceType] = useState('article')
-  const [resourceFeatured, setResourceFeatured] = useState(false)
-
-  const [resourceDisplaySection, setResourceDisplaySection] =
-    useState('library')
-
-  const [editingResourceId, setEditingResourceId] =
-    useState<string | null>(null)
-
-  const [resources, setResources] = useState<Resource[]>([])
-  const [message, setMessage] = useState('')
-  const [uploading, setUploading] = useState(false)
+  const [principle, setPrinciple] = useState<Principle | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [featuredConversation, setFeaturedConversation] =
+    useState<Resource | null>(null)
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (initialized && !loading && !user) {
       router.push('/login')
     }
-
-    if (!loading && user && !adminEmails.includes(user.email || '')) {
-      router.push('/dashboard')
-    }
-  }, [user, loading, router])
-
-  const fetchResources = async () => {
-    const { data } = await supabase
-      .from('resources')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (data) {
-      setResources(data)
-    }
-  }
+  }, [user, loading, initialized, router])
 
   useEffect(() => {
-    fetchResources()
-  }, [])
+    const fetchDashboardData = async () => {
+      if (!user) return
 
-  const resetResourceForm = () => {
-    setResourceTitle('')
-    setResourceDescription('')
-    setResourceUrl('')
-    setResourceThumbnailUrl('')
-    setResourceType('article')
-    setResourceFeatured(false)
-    setResourceDisplaySection('library')
-    setEditingResourceId(null)
-  }
+      //------------------------------------
+      // DAILY PRINCIPLE — day-of-year rotation
+      //------------------------------------
+      const { data: principles } = await supabase
+        .from('daily_principles')
+        .select('*')
 
-  const uploadImage = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    try {
-      setUploading(true)
-
-      const file = event.target.files?.[0]
-
-      if (!file) return
-
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}.${fileExt}`
-
-      const { error } = await supabase.storage
-        .from('media')
-        .upload(fileName, file)
-
-      if (error) {
-        setMessage(error.message)
-        return
+      if (principles && principles.length > 0) {
+        const dayIndex = getDayOfYear() % principles.length
+        setPrinciple(principles[dayIndex])
       }
 
-      const { data } = supabase.storage
-        .from('media')
-        .getPublicUrl(fileName)
-
-      setResourceThumbnailUrl(data.publicUrl)
-
-      setMessage('Image uploaded successfully.')
-    } catch (err) {
-      setMessage('Image upload failed.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const addPrinciple = async () => {
-    setMessage('Saving principle...')
-
-    if (!title || !content) {
-      setMessage('Please add both principle title and content.')
-      return
-    }
-
-    const { error } = await supabase.from('daily_principles').insert([
-      {
-        title,
-        content,
-      },
-    ])
-
-    if (error) {
-      setMessage(error.message)
-      return
-    }
-
-    setMessage('Principle added successfully.')
-    setTitle('')
-    setContent('')
-  }
-
-  const addResource = async () => {
-    setMessage('Saving resource...')
-
-    const { error } = await supabase.from('resources').insert([
-      {
-        title: resourceTitle,
-        description: resourceDescription,
-        type: resourceType,
-        url: resourceUrl,
-        thumbnail_url: resourceThumbnailUrl,
-        is_featured: resourceFeatured,
-        display_section: resourceDisplaySection,
-      },
-    ])
-
-    if (error) {
-      setMessage(error.message)
-      return
-    }
-
-    setMessage('Resource added successfully.')
-    resetResourceForm()
-    fetchResources()
-  }
-
-  const startEditResource = (resource: Resource) => {
-    setEditingResourceId(resource.id)
-
-    setResourceTitle(resource.title || '')
-    setResourceDescription(resource.description || '')
-    setResourceUrl(resource.url || '')
-    setResourceThumbnailUrl(resource.thumbnail_url || '')
-    setResourceType(resource.type || 'article')
-
-    setResourceFeatured(Boolean(resource.is_featured))
-
-    setResourceDisplaySection(resource.display_section || 'library')
-
-    setMessage('Editing media item.')
-  }
-
-  const updateResource = async () => {
-    if (!editingResourceId) return
-
-    const { error } = await supabase
-      .from('resources')
-      .update({
-        title: resourceTitle,
-        description: resourceDescription,
-        type: resourceType,
-        url: resourceUrl,
-        thumbnail_url: resourceThumbnailUrl,
-        is_featured: resourceFeatured,
-        display_section: resourceDisplaySection,
+      //------------------------------------
+      // STREAK SYSTEM
+      //------------------------------------
+      await supabase.rpc('update_user_streak', {
+        user_uuid: user.id,
       })
-      .eq('id', editingResourceId)
 
-    if (error) {
-      setMessage(error.message)
-      return
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('streak_count, display_name')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profileData) {
+        setProfile(profileData)
+      }
+
+      //------------------------------------
+      // FEATURED CONVERSATION
+      //------------------------------------
+      const { data: media } = await supabase
+        .from('resources')
+        .select('*')
+        .eq('display_section', 'conversation')
+        .limit(1)
+
+      if (media && media.length > 0) {
+        setFeaturedConversation(media[0])
+      }
     }
 
-    setMessage('Resource updated successfully.')
+    fetchDashboardData()
+  }, [user])
 
-    resetResourceForm()
-    fetchResources()
-  }
+  if (loading || !initialized) return null
 
-  const deleteResource = async (id: string) => {
-    const confirmed = confirm('Delete this media item?')
-
-    if (!confirmed) return
-
-    const { error } = await supabase
-      .from('resources')
-      .delete()
-      .eq('id', id)
-
-    if (error) {
-      setMessage(error.message)
-      return
-    }
-
-    setMessage('Media deleted.')
-    fetchResources()
-  }
-
-  if (loading) return null
-
-  if (!user || !adminEmails.includes(user.email || '')) {
-    return null
-  }
+  const featuredEmbed = getMediaEmbedUrl(
+    featuredConversation?.url || null
+  )
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <section className="mx-auto max-w-md space-y-10">
-        <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">
-            Admin
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold">
-            A MADE MAN Control Room
-          </h1>
-        </div>
-
-        <div className="space-y-4">
-          <input
-            value={resourceTitle}
-            onChange={(e) => setResourceTitle(e.target.value)}
-            placeholder="Media title"
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-          />
-
-          <textarea
-            value={resourceDescription}
-            onChange={(e) => setResourceDescription(e.target.value)}
-            placeholder="Media description"
-            className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-          />
-
-          <input
-            value={resourceUrl}
-            onChange={(e) => setResourceUrl(e.target.value)}
-            placeholder="Video URL optional"
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-          />
-
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-            <p className="mb-3 text-sm text-zinc-400">
-              Upload Hero / Thumbnail Image
-            </p>
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={uploadImage}
+    <main className="min-h-screen bg-black px-6 pb-24 pt-8 text-white">
+      <section className="mx-auto max-w-md space-y-8">
+        <div className="space-y-5">
+          <div className="flex items-center gap-4">
+            <img
+              src="/branding/made-logo.png"
+              alt="A MADE MAN"
+              className="h-16 w-auto"
             />
 
-            {uploading && (
-              <p className="mt-3 text-sm text-zinc-500">
-                Uploading image...
+            <div>
+              <p className="text-sm uppercase tracking-[0.4em] text-zinc-500">
+                A MADE MAN
               </p>
-            )}
+
+              <p className="text-xs text-zinc-600">
+                MEN. ADVOCACY. DIRECTION. EXCELLENCE.
+              </p>
+            </div>
           </div>
 
-          {resourceThumbnailUrl && (
-            <img
-              src={resourceThumbnailUrl}
-              alt="Thumbnail"
-              className="h-52 w-full rounded-3xl object-cover"
-            />
-          )}
+          <div>
+            <h1 className="text-5xl font-black leading-tight">
+              Welcome back.
+            </h1>
 
-          <select
-            value={resourceType}
-            onChange={(e) => setResourceType(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-          >
-            <option value="article">Article</option>
-            <option value="replay">Conference Replay</option>
-            <option value="video">Video</option>
-            <option value="short">Short / Edit</option>
-            <option value="podcast">Podcast Episode</option>
-          </select>
+            <p className="mt-3 text-zinc-400">
+              Keep building the man you were meant to become.
+            </p>
+          </div>
 
-          <select
-            value={resourceDisplaySection}
-            onChange={(e) => setResourceDisplaySection(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-          >
-            <option value="library">General Library</option>
-            <option value="hero">Homepage Hero</option>
-            <option value="conversation">Featured Conversation</option>
-            <option value="shorts">Shorts Rail</option>
-            <option value="replay">Conference Replay</option>
-            <option value="podcast">Podcast Episode</option>
-            <option value="article">Article</option>
-          </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+                Discipline Streak
+              </p>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
-            <input
-              type="checkbox"
-              checked={resourceFeatured}
-              onChange={(e) => setResourceFeatured(e.target.checked)}
-            />
-            Feature this media
-          </label>
+              <h2 className="mt-3 text-5xl font-black">
+                {profile?.streak_count || 1}
+              </h2>
 
-          {editingResourceId ? (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={updateResource}
-                className="rounded-2xl bg-white py-3 font-semibold text-black"
-              >
-                Update Media
-              </button>
-
-              <button
-                onClick={resetResourceForm}
-                className="rounded-2xl border border-zinc-700 py-3"
-              >
-                Cancel
-              </button>
+              <p className="mt-2 text-sm text-zinc-400">
+                Consecutive days showing up intentionally.
+              </p>
             </div>
-          ) : (
-            <button
-              onClick={addResource}
-              className="w-full rounded-2xl bg-white py-3 font-semibold text-black"
-            >
-              Save Media
-            </button>
-          )}
+
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+                Brotherhood
+              </p>
+
+              <h2 className="mt-3 text-5xl font-black">
+                500+
+              </h2>
+
+              <p className="mt-2 text-sm text-zinc-400">
+                Men impacted through the movement.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-4 border-t border-zinc-800 pt-8">
-          <h2 className="text-2xl font-bold">Media Library</h2>
-
-          {resources.map((resource) => (
-            <div
-              key={resource.id}
-              className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4"
-            >
-              {resource.thumbnail_url && (
-                <img
-                  src={resource.thumbnail_url}
-                  alt={resource.title}
-                  className="h-40 w-full rounded-2xl object-cover"
-                />
-              )}
-
-              <div>
-                <p className="font-semibold">{resource.title}</p>
-
-                <p className="text-sm text-zinc-500">
-                  {resource.type}
-                </p>
-
-                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-600">
-                  {resource.display_section}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => startEditResource(resource)}
-                  className="rounded-xl border border-zinc-700 px-3 py-2 text-sm"
-                >
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => deleteResource(resource.id)}
-                  className="rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {message && (
-          <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
-            {message}
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+            Today's Principle
           </p>
+
+          <h2 className="mt-4 text-3xl font-bold">
+            {principle?.title || 'Loading principle...'}
+          </h2>
+
+          <p className="mt-5 leading-8 text-zinc-300">
+            {principle?.content || ''}
+          </p>
+        </div>
+
+        {featuredConversation && (
+          <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950">
+            {featuredEmbed && (
+              <div className="aspect-video w-full">
+                <iframe
+                  src={featuredEmbed}
+                  title={featuredConversation.title}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            )}
+
+            {!featuredEmbed && featuredConversation.thumbnail_url && (
+              <img
+                src={featuredConversation.thumbnail_url}
+                alt={featuredConversation.title}
+                className="h-60 w-full object-cover"
+              />
+            )}
+
+            <div className="space-y-3 p-6">
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+                Featured Conversation
+              </p>
+
+              <h2 className="text-2xl font-bold">
+                {featuredConversation.title}
+              </h2>
+
+              {featuredConversation.description && (
+                <p className="text-zinc-400">
+                  {featuredConversation.description}
+                </p>
+              )}
+            </div>
+          </div>
         )}
+
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+            Your Identity
+          </p>
+
+          <h2 className="mt-4 text-2xl font-bold">
+            {profile?.display_name || 'Made Man'}
+          </h2>
+
+          <p className="mt-3 text-zinc-400">
+            You are building discipline, responsibility,
+            leadership, faith, consistency, and legacy one day
+            at a time.
+          </p>
+
+          <p className="mt-5 text-sm text-zinc-600">
+            Signed in as {user?.email}
+          </p>
+        </div>
+
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut()
+            router.push('/login')
+          }}
+          className="w-full rounded-2xl border border-zinc-700 py-4 text-sm font-semibold"
+        >
+          Logout
+        </button>
       </section>
+
+      <BottomNav />
     </main>
   )
 }
