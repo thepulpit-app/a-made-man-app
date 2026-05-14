@@ -69,7 +69,7 @@ const navItems = [
   },
   {
     label: 'More',
-    href: '/about',
+    href: '/more',
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <circle cx="5" cy="11" r="1.5" fill="currentColor" />
