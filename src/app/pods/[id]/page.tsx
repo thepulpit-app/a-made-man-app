@@ -2,24 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../lib/useAuth'
+import { supabase } from '../../../lib/supabase'
+import { useAuth } from '../../../lib/useAuth'
+import BottomNav from '../../../components/BottomNav'
 
-type Resource = {
+type Pod = {
   id: string
-  title: string
+  name: string
   description: string | null
-  type: string
-  url: string | null
-  thumbnail_url: string | null
-  is_featured: boolean | null
-  display_section: string | null
-}
-
-type Principle = {
-  id: string
-  title: string
-  content: string
+  invite_code: string
+  created_by: string
 }
 
 type Prompt = {
@@ -28,424 +20,331 @@ type Prompt = {
   week_number: number
 }
 
-export default function AdminPage() {
-  const { user, loading, initialized } = useAuth()
+type Response = {
+  id: string
+  user_id: string
+  response: string
+  created_at: string
+  display_name: string | null
+}
+
+type Member = {
+  user_id: string
+  display_name: string | null
+  has_responded: boolean
+}
+
+// App launch date — the week calculation starts from here.
+// Every 7 days from this date, a new prompt automatically becomes active.
+// Change this date if you want to reset the cycle.
+const APP_LAUNCH_DATE = new Date('2026-05-05')
+
+function getCurrentWeekIndex(totalPrompts: number): number {
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000
+  const weeksElapsed = Math.floor(
+    (Date.now() - APP_LAUNCH_DATE.getTime()) / msPerWeek
+  )
+  return weeksElapsed % totalPrompts
+}
+
+export default function PodDetailPage({
+  params,
+}: {
+  params: { id: string }
+}) {
+  const { user } = useAuth()
   const router = useRouter()
 
-  const adminEmails = ['topeajijola@hotmail.com']
-
-  const [activeTab, setActiveTab] = useState<'principles' | 'media' | 'prompts' | 'push'>('principles')
-
-  // Principle states
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [principles, setPrinciples] = useState<Principle[]>([])
-
-  // Resource states
-  const [resourceTitle, setResourceTitle] = useState('')
-  const [resourceDescription, setResourceDescription] = useState('')
-  const [resourceUrl, setResourceUrl] = useState('')
-  const [resourceThumbnailUrl, setResourceThumbnailUrl] = useState('')
-  const [resourceType, setResourceType] = useState('article')
-  const [resourceFeatured, setResourceFeatured] = useState(false)
-  const [resourceDisplaySection, setResourceDisplaySection] = useState('library')
-  const [editingResourceId, setEditingResourceId] = useState<string | null>(null)
-  const [resources, setResources] = useState<Resource[]>([])
-  const [uploading, setUploading] = useState(false)
-
-  // Prompt states
-  const [promptQuestion, setPromptQuestion] = useState('')
-  const [promptWeek, setPromptWeek] = useState('')
-  const [prompts, setPrompts] = useState<Prompt[]>([])
-
-  // Push states
-  const [pushSending, setPushSending] = useState(false)
-  const [pushResult, setPushResult] = useState('')
-
-  // Shared
+  const [pod, setPod] = useState<Pod | null>(null)
+  const [prompt, setPrompt] = useState<Prompt | null>(null)
+  const [responses, setResponses] = useState<Response[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [myResponse, setMyResponse] = useState('')
+  const [hasResponded, setHasResponded] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+  const [activeTab, setActiveTab] = useState<'prompt' | 'members'>('prompt')
 
-  // Auth guard
-  useEffect(() => {
-    if (!initialized) return
-    if (!loading && !user) router.push('/login')
-    if (!loading && user && !adminEmails.includes(user.email || '')) router.push('/dashboard')
-  }, [user, loading, initialized, router])
+  const fetchPodData = async () => {
+    if (!user) return
 
-  // Fetch all data
-  const fetchResources = async () => {
-    const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false })
-    if (data) setResources(data)
-  }
+    // Verify membership
+    const { data: membership } = await supabase
+      .from('pod_members')
+      .select('id')
+      .eq('pod_id', params.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
 
-  const fetchPrinciples = async () => {
-    const { data } = await supabase.from('daily_principles').select('*').order('created_at', { ascending: false })
-    if (data) setPrinciples(data)
-  }
-
-  const fetchPrompts = async () => {
-    const { data } = await supabase.from('pod_prompts').select('*').order('week_number', { ascending: false })
-    if (data) setPrompts(data)
-  }
-
-  useEffect(() => {
-    fetchResources()
-    fetchPrinciples()
-    fetchPrompts()
-  }, [])
-
-  // Principle actions
-  const addPrinciple = async () => {
-    if (!title || !content) { setMessage('Please add both a title and content.'); return }
-    setMessage('Saving principle...')
-    const { error } = await supabase.from('daily_principles').insert([{ title, content }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle added.')
-    setTitle('')
-    setContent('')
-    fetchPrinciples()
-  }
-
-  const deletePrinciple = async (id: string) => {
-    if (!confirm('Delete this principle?')) return
-    const { error } = await supabase.from('daily_principles').delete().eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle deleted.')
-    fetchPrinciples()
-  }
-
-  // Resource actions
-  const resetResourceForm = () => {
-    setResourceTitle(''); setResourceDescription(''); setResourceUrl('')
-    setResourceThumbnailUrl(''); setResourceType('article')
-    setResourceFeatured(false); setResourceDisplaySection('library')
-    setEditingResourceId(null)
-  }
-
-  const uploadImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      setUploading(true)
-      const file = event.target.files?.[0]
-      if (!file) return
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}.${fileExt}`
-      const { error } = await supabase.storage.from('media').upload(fileName, file)
-      if (error) { setMessage(error.message); return }
-      const { data } = supabase.storage.from('media').getPublicUrl(fileName)
-      setResourceThumbnailUrl(data.publicUrl)
-      setMessage('Image uploaded.')
-    } catch { setMessage('Image upload failed.') }
-    finally { setUploading(false) }
-  }
-
-  const addResource = async () => {
-    setMessage('Saving resource...')
-    const { error } = await supabase.from('resources').insert([{
-      title: resourceTitle, description: resourceDescription, type: resourceType,
-      url: resourceUrl, thumbnail_url: resourceThumbnailUrl,
-      is_featured: resourceFeatured, display_section: resourceDisplaySection,
-    }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Resource added.')
-    resetResourceForm()
-    fetchResources()
-  }
-
-  const startEditResource = (resource: Resource) => {
-    setEditingResourceId(resource.id)
-    setResourceTitle(resource.title || ''); setResourceDescription(resource.description || '')
-    setResourceUrl(resource.url || ''); setResourceThumbnailUrl(resource.thumbnail_url || '')
-    setResourceType(resource.type || 'article'); setResourceFeatured(Boolean(resource.is_featured))
-    setResourceDisplaySection(resource.display_section || 'library')
-    setMessage('Editing media item.')
-  }
-
-  const updateResource = async () => {
-    if (!editingResourceId) return
-    const { error } = await supabase.from('resources').update({
-      title: resourceTitle, description: resourceDescription, type: resourceType,
-      url: resourceUrl, thumbnail_url: resourceThumbnailUrl,
-      is_featured: resourceFeatured, display_section: resourceDisplaySection,
-    }).eq('id', editingResourceId)
-    if (error) { setMessage(error.message); return }
-    setMessage('Resource updated.')
-    resetResourceForm()
-    fetchResources()
-  }
-
-  const deleteResource = async (id: string) => {
-    if (!confirm('Delete this media item?')) return
-    const { error } = await supabase.from('resources').delete().eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Media deleted.')
-    fetchResources()
-  }
-
-  // Prompt actions
-  const addPrompt = async () => {
-    if (!promptQuestion.trim() || !promptWeek) {
-      setMessage('Please enter a question and week number.')
+    if (!membership) {
+      router.push('/pods')
       return
     }
-    setMessage('Saving prompt...')
-    const { error } = await supabase.from('pod_prompts').insert([{
-      question: promptQuestion.trim(),
-      week_number: parseInt(promptWeek),
-      is_active: false,
-    }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Prompt added.')
-    setPromptQuestion('')
-    setPromptWeek('')
-    fetchPrompts()
-  }
 
-  const deletePrompt = async (id: string) => {
-    if (!confirm('Delete this prompt?')) return
-    const { error } = await supabase.from('pod_prompts').delete().eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Prompt deleted.')
-    fetchPrompts()
-  }
+    // Fetch pod details
+    const { data: podData } = await supabase
+      .from('pods')
+      .select('*')
+      .eq('id', params.id)
+      .single()
 
-  // Push actions
-  const sendDailyPush = async () => {
-    setPushSending(true)
-    setPushResult('Sending...')
-    try {
-      const res = await fetch('/api/push/send', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setPushResult(`Sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}. Principle: "${data.principle}"`)
-      } else {
-        setPushResult(data.error || data.message || 'Something went wrong.')
-      }
-    } catch {
-      setPushResult('Failed — check Vercel logs.')
-    } finally {
-      setPushSending(false)
+    if (podData) setPod(podData)
+
+    // Fetch all prompts ordered by week_number
+    // Auto-select the current week's prompt based on elapsed weeks since launch
+    const { data: allPrompts } = await supabase
+      .from('pod_prompts')
+      .select('id, question, week_number')
+      .order('week_number', { ascending: true })
+
+    if (!allPrompts || allPrompts.length === 0) {
+      setLoading(false)
+      return
     }
+
+    const weekIndex = getCurrentWeekIndex(allPrompts.length)
+    const currentPrompt = allPrompts[weekIndex]
+    setPrompt(currentPrompt)
+
+    // Fetch responses for this prompt in this pod
+    const { data: responsesData } = await supabase
+      .from('pod_responses')
+      .select('id, user_id, response, created_at')
+      .eq('pod_id', params.id)
+      .eq('prompt_id', currentPrompt.id)
+      .order('created_at', { ascending: true })
+
+    let enrichedResponses: Response[] = []
+
+    if (responsesData && responsesData.length > 0) {
+      const userIds = responsesData.map((r) => r.user_id)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds)
+
+      const profileMap = new Map(profiles?.map((p) => [p.id, p.display_name]) || [])
+
+      enrichedResponses = responsesData.map((r) => ({
+        ...r,
+        display_name: profileMap.get(r.user_id) || 'A Made Man',
+      }))
+
+      setResponses(enrichedResponses)
+      setHasResponded(!!responsesData.find((r) => r.user_id === user.id))
+    } else {
+      setResponses([])
+      setHasResponded(false)
+    }
+
+    // Fetch members
+    const { data: membersData } = await supabase
+      .from('pod_members')
+      .select('user_id')
+      .eq('pod_id', params.id)
+
+    if (membersData) {
+      const memberIds = membersData.map((m) => m.user_id)
+      const { data: memberProfiles } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', memberIds)
+
+      const profileMap = new Map(memberProfiles?.map((p) => [p.id, p.display_name]) || [])
+      const respondedIds = new Set(enrichedResponses.map((r) => r.user_id))
+
+      setMembers(membersData.map((m) => ({
+        user_id: m.user_id,
+        display_name: profileMap.get(m.user_id) || 'A Made Man',
+        has_responded: respondedIds.has(m.user_id),
+      })))
+    }
+
+    setLoading(false)
   }
 
-  if (loading || !initialized) return null
-  if (!user || !adminEmails.includes(user.email || '')) return null
+  useEffect(() => {
+    fetchPodData()
+  }, [user, params.id])
 
-  const tabs = ['principles', 'media', 'prompts', 'push'] as const
+  const submitResponse = async () => {
+    if (!user || !prompt || !myResponse.trim()) {
+      setMessage('Please write your response first.')
+      return
+    }
+
+    setSubmitting(true)
+    setMessage('')
+
+    const { error } = await supabase.from('pod_responses').insert({
+      pod_id: params.id,
+      user_id: user.id,
+      prompt_id: prompt.id,
+      response: myResponse.trim(),
+    })
+
+    if (error) {
+      setMessage(error.message)
+      setSubmitting(false)
+      return
+    }
+
+    setHasResponded(true)
+    setMyResponse('')
+    setSubmitting(false)
+    fetchPodData()
+  }
+
+  if (loading) return null
+  if (!pod) return null
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <section className="mx-auto max-w-md space-y-10">
+    <main className="min-h-screen bg-black px-6 pb-24 pt-8 text-white">
+      <section className="mx-auto max-w-md space-y-6">
 
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Admin</p>
-          <h1 className="mt-2 text-3xl font-bold">A MADE MAN Control Room</h1>
+          <button
+            onClick={() => router.push('/pods')}
+            className="mb-4 flex items-center gap-2 text-sm text-zinc-500"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            All Pods
+          </button>
+          <h1 className="text-4xl font-black">{pod.name}</h1>
+          {pod.description && <p className="mt-2 text-zinc-400">{pod.description}</p>}
+          <div className="mt-3 flex items-center gap-2">
+            <p className="text-xs uppercase tracking-[0.2em] text-zinc-600">Invite Code:</p>
+            <p className="text-sm font-bold tracking-widest text-zinc-400">{pod.invite_code}</p>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="grid grid-cols-4 gap-1 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
-          {tabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl py-3 text-xs font-semibold capitalize transition-all ${
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
+          {(['prompt', 'members'] as const).map((tab) => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`rounded-xl py-3 text-sm font-semibold capitalize transition-all ${
                 activeTab === tab ? 'bg-white text-black' : 'text-zinc-400'
-              }`}
-            >
-              {tab === 'principles' ? 'Daily' : tab === 'prompts' ? 'Pods' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              }`}>
+              {tab === 'prompt' ? "This Week's Check-in" : `Members (${members.length})`}
             </button>
           ))}
         </div>
 
-        {/* ── PRINCIPLES TAB ── */}
-        {activeTab === 'principles' && (
+        {activeTab === 'prompt' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold">Add a Daily Principle</h2>
-              <p className="mt-1 text-sm text-zinc-500">{principles.length} principle{principles.length !== 1 ? 's' : ''} in rotation</p>
-            </div>
-            <div className="space-y-4">
-              <input value={title} onChange={(e) => setTitle(e.target.value)}
-                placeholder="Principle title e.g. HARD WORK IS AN ACT OF WORSHIP"
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <textarea value={content} onChange={(e) => setContent(e.target.value)}
-                placeholder="Full principle content shown to members on the dashboard"
-                className="min-h-36 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <button onClick={addPrinciple} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">
-                Add Principle
-              </button>
-            </div>
-            <div className="space-y-3 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">All Principles</h3>
-              {principles.length === 0 && <p className="text-sm text-zinc-500">No principles yet.</p>}
-              {principles.map((p) => (
-                <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="font-semibold">{p.title}</p>
-                  <p className="mt-2 text-sm leading-7 text-zinc-400">{p.content}</p>
-                  <button onClick={() => deletePrinciple(p.id)}
-                    className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400">
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── MEDIA TAB ── */}
-        {activeTab === 'media' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold">{editingResourceId ? 'Edit Media Item' : 'Add Media'}</h2>
-            <div className="space-y-4">
-              <input value={resourceTitle} onChange={(e) => setResourceTitle(e.target.value)} placeholder="Media title" className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <textarea value={resourceDescription} onChange={(e) => setResourceDescription(e.target.value)} placeholder="Media description" className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <input value={resourceUrl} onChange={(e) => setResourceUrl(e.target.value)} placeholder="Video URL (optional)" className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <p className="mb-3 text-sm text-zinc-400">Upload Thumbnail Image</p>
-                <input type="file" accept="image/*" onChange={uploadImage} />
-                {uploading && <p className="mt-3 text-sm text-zinc-500">Uploading...</p>}
+            {!prompt ? (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+                <p className="text-zinc-400">
+                  No prompts loaded yet. Add weekly prompts in the admin panel.
+                </p>
               </div>
-              {resourceThumbnailUrl && <img src={resourceThumbnailUrl} alt="Thumbnail" className="h-52 w-full rounded-3xl object-cover" />}
-              <select value={resourceType} onChange={(e) => setResourceType(e.target.value)} className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none">
-                <option value="article">Article</option>
-                <option value="replay">Conference Replay</option>
-                <option value="video">Video</option>
-                <option value="short">Short / Edit</option>
-                <option value="podcast">Podcast Episode</option>
-              </select>
-              <select value={resourceDisplaySection} onChange={(e) => setResourceDisplaySection(e.target.value)} className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none">
-                <option value="library">General Library</option>
-                <option value="hero">Homepage Hero</option>
-                <option value="conversation">Featured Conversation</option>
-                <option value="shorts">Shorts Rail</option>
-                <option value="replay">Conference Replay</option>
-                <option value="podcast">Podcast Episode</option>
-                <option value="article">Article</option>
-              </select>
-              <label className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
-                <input type="checkbox" checked={resourceFeatured} onChange={(e) => setResourceFeatured(e.target.checked)} />
-                Feature this media
-              </label>
-              {editingResourceId ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={updateResource} className="rounded-2xl bg-white py-3 font-semibold text-black">Update Media</button>
-                  <button onClick={resetResourceForm} className="rounded-2xl border border-zinc-700 py-3">Cancel</button>
+            ) : (
+              <>
+                <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
+                  <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+                    Week {prompt.week_number} Check-in
+                  </p>
+                  <h2 className="mt-4 text-2xl font-bold leading-snug">{prompt.question}</h2>
                 </div>
-              ) : (
-                <button onClick={addResource} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">Save Media</button>
-              )}
-            </div>
-            <div className="space-y-4 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">All Media ({resources.length} items)</h3>
-              {resources.map((resource) => (
-                <div key={resource.id} className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  {resource.thumbnail_url && <img src={resource.thumbnail_url} alt={resource.title} className="h-40 w-full rounded-2xl object-cover" />}
-                  <div>
-                    <p className="font-semibold">{resource.title}</p>
-                    <p className="text-sm text-zinc-500">{resource.type}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-600">{resource.display_section}</p>
+
+                {!hasResponded ? (
+                  <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+                    <h3 className="text-lg font-semibold">Your Response</h3>
+                    <p className="text-sm text-zinc-500">
+                      Be honest. Your brothers are counting on the real you, not the polished version.
+                    </p>
+                    <textarea value={myResponse} onChange={(e) => setMyResponse(e.target.value)}
+                      placeholder="Write your honest response..."
+                      className="min-h-32 w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none" />
+                    <button onClick={submitResponse} disabled={submitting}
+                      className="w-full rounded-2xl bg-white py-3 font-semibold text-black disabled:opacity-60">
+                      {submitting ? 'Submitting...' : 'Submit Response'}
+                    </button>
+                    {message && <p className="text-sm text-zinc-400">{message}</p>}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => startEditResource(resource)} className="rounded-xl border border-zinc-700 px-3 py-2 text-sm">Edit</button>
-                    <button onClick={() => deleteResource(resource.id)} className="rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400">Delete</button>
+                ) : (
+                  <div className="rounded-3xl border border-zinc-700 bg-zinc-950 p-5 text-center">
+                    <p className="text-sm font-semibold text-zinc-300">You've checked in this week.</p>
+                    <p className="mt-1 text-sm text-zinc-500">Read your brothers' responses below.</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                )}
 
-        {/* ── PROMPTS TAB ── */}
-        {activeTab === 'prompts' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold">Pod Weekly Prompts</h2>
-              <p className="mt-2 text-sm text-zinc-500 leading-7">
-                Add all your prompts here once — ordered by week number. The app automatically
-                shows the right prompt each week based on weeks elapsed since launch (May 5, 2026).
-                No manual activation needed. Prompts cycle endlessly.
-              </p>
-            </div>
+                {responses.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm uppercase tracking-[0.3em] text-zinc-500">
+                      {responses.length} Response{responses.length !== 1 ? 's' : ''} This Week
+                    </h3>
+                    {responses.map((r) => (
+                      <div key={r.id} className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                          {r.user_id === user?.id ? 'You' : r.display_name}
+                        </p>
+                        <p className="mt-3 whitespace-pre-wrap leading-8 text-zinc-300">{r.response}</p>
+                        <p className="mt-4 text-xs text-zinc-600">
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 space-y-1">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Currently Active</p>
-              <p className="text-lg font-bold">
-                {prompts.length > 0
-                  ? `Week ${prompts[Math.floor((Date.now() - new Date('2026-05-05').getTime()) / (7 * 24 * 60 * 60 * 1000)) % prompts.length]?.week_number} prompt`
-                  : 'No prompts loaded yet'}
-              </p>
-            </div>
-
-            <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
-              <h3 className="font-semibold">Add New Prompt</h3>
-              <textarea
-                value={promptQuestion}
-                onChange={(e) => setPromptQuestion(e.target.value)}
-                placeholder="e.g. What's one area where you showed discipline this week? Be specific."
-                className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
-              />
-              <input
-                type="number"
-                value={promptWeek}
-                onChange={(e) => setPromptWeek(e.target.value)}
-                placeholder="Week number e.g. 1"
-                className="w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
-                min="1"
-              />
-              <button onClick={addPrompt} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">
-                Add Prompt
-              </button>
-            </div>
-
-            <div className="space-y-3 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">All Prompts ({prompts.length})</h3>
-              {prompts.length === 0 && <p className="text-sm text-zinc-500">No prompts yet. Add your 12 weekly questions above.</p>}
-              {prompts.map((p) => (
-                <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-2">Week {p.week_number}</p>
-                  <p className="leading-7 text-zinc-300">{p.question}</p>
-                  <button
-                    onClick={() => deletePrompt(p.id)}
-                    className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── PUSH TAB ── */}
-        {activeTab === 'push' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold">Push Notifications</h2>
-              <p className="mt-2 text-sm text-zinc-500 leading-7">
-                The daily principle is automatically sent to all subscribers every morning at 7am Lagos time. Use the button below to send manually for testing or special announcements.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Schedule</p>
-              <p className="text-lg font-semibold">Every day at 7:00 AM</p>
-              <p className="text-sm text-zinc-400">Lagos / West Africa Time (WAT)</p>
-            </div>
-            <button onClick={sendDailyPush} disabled={pushSending}
-              className="w-full rounded-2xl bg-white py-4 font-semibold text-black disabled:opacity-60">
-              {pushSending ? 'Sending...' : "Send Today's Principle Now"}
-            </button>
-            {pushResult && (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400 leading-7">
-                {pushResult}
-              </div>
+                {responses.length === 0 && hasResponded && (
+                  <p className="text-center text-sm text-zinc-500">
+                    You're the first to respond. Your brothers will follow.
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
 
-        {message && (
-          <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">{message}</p>
+        {activeTab === 'members' && (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-500">{members.length} of 7 spots filled</p>
+            <div className="h-1 w-full rounded-full bg-zinc-800">
+              <div className="h-1 rounded-full bg-white" style={{ width: `${(members.length / 7) * 100}%` }} />
+            </div>
+            <div className="space-y-3 pt-2">
+              {members.map((member) => (
+                <div key={member.user_id}
+                  className="flex items-center justify-between rounded-2xl border border-zinc-800 bg-zinc-950 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-sm font-bold">
+                      {(member.display_name || 'M')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-semibold">
+                        {member.user_id === user?.id
+                          ? `${member.display_name} (You)`
+                          : member.display_name || 'A Made Man'}
+                      </p>
+                      {member.user_id === pod.created_by && (
+                        <p className="text-xs text-zinc-500">Pod Creator</p>
+                      )}
+                    </div>
+                  </div>
+                  {prompt && (
+                    <div className={`text-xs font-semibold uppercase tracking-wider ${
+                      member.has_responded ? 'text-green-400' : 'text-zinc-600'
+                    }`}>
+                      {member.has_responded ? 'Checked in' : 'Pending'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-2">Share Invite Code</p>
+              <p className="text-2xl font-black tracking-widest">{pod.invite_code}</p>
+              <p className="mt-2 text-xs text-zinc-600">Share this code with men you want in this pod</p>
+            </div>
+          </div>
         )}
 
       </section>
+      <BottomNav />
     </main>
   )
 }
