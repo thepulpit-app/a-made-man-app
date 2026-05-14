@@ -109,7 +109,9 @@ export default function DashboardPage() {
           </div>
 
           <div>
-            <h1 className="text-5xl font-black leading-tight">Welcome back.</h1>
+            <h1 className="text-5xl font-black leading-tight">
+              Welcome back{profile?.display_name ? `, ${profile.display_name}` : ''}.
+            </h1>
             <p className="mt-3 text-zinc-400">Keep building the man you were meant to become.</p>
           </div>
 
