@@ -28,12 +28,15 @@ export default function AdminPage() {
 
   const adminEmails = ['topeajijola@hotmail.com']
 
-  // Principle states
+  // ── TAB ──
+  const [activeTab, setActiveTab] = useState<'principles' | 'media' | 'push'>('principles')
+
+  // ── PRINCIPLE STATES ──
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [principles, setPrinciples] = useState<Principle[]>([])
 
-  // Resource states
+  // ── RESOURCE STATES ──
   const [resourceTitle, setResourceTitle] = useState('')
   const [resourceDescription, setResourceDescription] = useState('')
   const [resourceUrl, setResourceUrl] = useState('')
@@ -43,23 +46,23 @@ export default function AdminPage() {
   const [resourceDisplaySection, setResourceDisplaySection] = useState('library')
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null)
   const [resources, setResources] = useState<Resource[]>([])
-
-  const [message, setMessage] = useState('')
   const [uploading, setUploading] = useState(false)
 
-  // FIX: track active tab so admin can switch between Principles and Media
-  const [activeTab, setActiveTab] = useState<'principles' | 'media'>('principles')
+  // ── PUSH STATES ──
+  const [pushSending, setPushSending] = useState(false)
+  const [pushResult, setPushResult] = useState('')
 
+  // ── SHARED ──
+  const [message, setMessage] = useState('')
+
+  // ── AUTH GUARD ──
   useEffect(() => {
     if (!initialized) return
-    if (!loading && !user) {
-      router.push('/login')
-    }
-    if (!loading && user && !adminEmails.includes(user.email || '')) {
-      router.push('/dashboard')
-    }
+    if (!loading && !user) router.push('/login')
+    if (!loading && user && !adminEmails.includes(user.email || '')) router.push('/dashboard')
   }, [user, loading, initialized, router])
 
+  // ── FETCH DATA ──
   const fetchResources = async () => {
     const { data } = await supabase
       .from('resources')
@@ -81,6 +84,35 @@ export default function AdminPage() {
     fetchPrinciples()
   }, [])
 
+  // ── PRINCIPLE ACTIONS ──
+  const addPrinciple = async () => {
+    if (!title || !content) {
+      setMessage('Please add both a title and content.')
+      return
+    }
+    setMessage('Saving principle...')
+    const { error } = await supabase
+      .from('daily_principles')
+      .insert([{ title, content }])
+    if (error) { setMessage(error.message); return }
+    setMessage('Principle added.')
+    setTitle('')
+    setContent('')
+    fetchPrinciples()
+  }
+
+  const deletePrinciple = async (id: string) => {
+    if (!confirm('Delete this principle?')) return
+    const { error } = await supabase
+      .from('daily_principles')
+      .delete()
+      .eq('id', id)
+    if (error) { setMessage(error.message); return }
+    setMessage('Principle deleted.')
+    fetchPrinciples()
+  }
+
+  // ── RESOURCE ACTIONS ──
   const resetResourceForm = () => {
     setResourceTitle('')
     setResourceDescription('')
@@ -103,36 +135,12 @@ export default function AdminPage() {
       if (error) { setMessage(error.message); return }
       const { data } = supabase.storage.from('media').getPublicUrl(fileName)
       setResourceThumbnailUrl(data.publicUrl)
-      setMessage('Image uploaded successfully.')
+      setMessage('Image uploaded.')
     } catch {
       setMessage('Image upload failed.')
     } finally {
       setUploading(false)
     }
-  }
-
-  // FIX: addPrinciple now works AND the UI is rendered below
-  const addPrinciple = async () => {
-    if (!title || !content) {
-      setMessage('Please add both principle title and content.')
-      return
-    }
-    setMessage('Saving principle...')
-    const { error } = await supabase.from('daily_principles').insert([{ title, content }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle added successfully.')
-    setTitle('')
-    setContent('')
-    fetchPrinciples()
-  }
-
-  const deletePrinciple = async (id: string) => {
-    const confirmed = confirm('Delete this principle?')
-    if (!confirmed) return
-    const { error } = await supabase.from('daily_principles').delete().eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle deleted.')
-    fetchPrinciples()
   }
 
   const addResource = async () => {
@@ -147,7 +155,7 @@ export default function AdminPage() {
       display_section: resourceDisplaySection,
     }])
     if (error) { setMessage(error.message); return }
-    setMessage('Resource added successfully.')
+    setMessage('Resource added.')
     resetResourceForm()
     fetchResources()
   }
@@ -176,18 +184,38 @@ export default function AdminPage() {
       display_section: resourceDisplaySection,
     }).eq('id', editingResourceId)
     if (error) { setMessage(error.message); return }
-    setMessage('Resource updated successfully.')
+    setMessage('Resource updated.')
     resetResourceForm()
     fetchResources()
   }
 
   const deleteResource = async (id: string) => {
-    const confirmed = confirm('Delete this media item?')
-    if (!confirmed) return
+    if (!confirm('Delete this media item?')) return
     const { error } = await supabase.from('resources').delete().eq('id', id)
     if (error) { setMessage(error.message); return }
     setMessage('Media deleted.')
     fetchResources()
+  }
+
+  // ── PUSH ACTIONS ──
+  const sendDailyPush = async () => {
+    setPushSending(true)
+    setPushResult('Sending...')
+    try {
+      const res = await fetch('/api/push/send', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setPushResult(
+          `Sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}. Principle: "${data.principle}"`
+        )
+      } else {
+        setPushResult(data.error || data.message || 'Something went wrong.')
+      }
+    } catch {
+      setPushResult('Failed — check Vercel logs.')
+    } finally {
+      setPushSending(false)
+    }
   }
 
   if (loading || !initialized) return null
@@ -202,28 +230,19 @@ export default function AdminPage() {
           <h1 className="mt-2 text-3xl font-bold">A MADE MAN Control Room</h1>
         </div>
 
-        {/* FIX: Tab switcher between Principles and Media */}
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
-          <button
-            onClick={() => setActiveTab('principles')}
-            className={`rounded-xl py-3 text-sm font-semibold transition-all ${
-              activeTab === 'principles'
-                ? 'bg-white text-black'
-                : 'text-zinc-400'
-            }`}
-          >
-            Daily Principles
-          </button>
-          <button
-            onClick={() => setActiveTab('media')}
-            className={`rounded-xl py-3 text-sm font-semibold transition-all ${
-              activeTab === 'media'
-                ? 'bg-white text-black'
-                : 'text-zinc-400'
-            }`}
-          >
-            Media Library
-          </button>
+        {/* ── TABS ── */}
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
+          {(['principles', 'media', 'push'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-xl py-3 text-sm font-semibold capitalize transition-all ${
+                activeTab === tab ? 'bg-white text-black' : 'text-zinc-400'
+              }`}
+            >
+              {tab === 'push' ? 'Push' : tab === 'principles' ? 'Principles' : 'Media'}
+            </button>
+          ))}
         </div>
 
         {/* ── PRINCIPLES TAB ── */}
@@ -243,14 +262,12 @@ export default function AdminPage() {
                 placeholder="Principle title e.g. HARD WORK IS AN ACT OF WORSHIP"
                 className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
               />
-
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Principle content — the full reflection or statement shown to members"
+                placeholder="Full principle content shown to members on the dashboard"
                 className="min-h-36 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
               />
-
               <button
                 onClick={addPrinciple}
                 className="w-full rounded-2xl bg-white py-3 font-semibold text-black"
@@ -259,19 +276,13 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Existing principles list */}
             <div className="space-y-3 border-t border-zinc-800 pt-6">
               <h3 className="text-lg font-semibold">All Principles</h3>
-
               {principles.length === 0 && (
                 <p className="text-sm text-zinc-500">No principles added yet.</p>
               )}
-
               {principles.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4"
-                >
+                <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                   <p className="font-semibold">{p.title}</p>
                   <p className="mt-2 text-sm leading-7 text-zinc-400">{p.content}</p>
                   <button
@@ -300,14 +311,12 @@ export default function AdminPage() {
                 placeholder="Media title"
                 className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
               />
-
               <textarea
                 value={resourceDescription}
                 onChange={(e) => setResourceDescription(e.target.value)}
                 placeholder="Media description"
                 className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
               />
-
               <input
                 value={resourceUrl}
                 onChange={(e) => setResourceUrl(e.target.value)}
@@ -393,7 +402,6 @@ export default function AdminPage() {
               <h3 className="text-lg font-semibold">
                 All Media ({resources.length} items)
               </h3>
-
               {resources.map((resource) => (
                 <div
                   key={resource.id}
@@ -415,7 +423,7 @@ export default function AdminPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => { startEditResource(resource); setActiveTab('media') }}
+                      onClick={() => { startEditResource(resource); }}
                       className="rounded-xl border border-zinc-700 px-3 py-2 text-sm"
                     >
                       Edit
@@ -433,11 +441,57 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── PUSH TAB ── */}
+        {activeTab === 'push' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold">Push Notifications</h2>
+              <p className="mt-2 text-sm text-zinc-500 leading-7">
+                The daily principle is automatically sent to all subscribers every morning
+                at 7am Lagos time via Vercel cron. Use the button below to send a manual
+                push immediately — useful for testing or special announcements.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Schedule</p>
+              <p className="text-lg font-semibold">Every day at 7:00 AM</p>
+              <p className="text-sm text-zinc-400">Lagos / West Africa Time (WAT)</p>
+            </div>
+
+            <button
+              onClick={sendDailyPush}
+              disabled={pushSending}
+              className="w-full rounded-2xl bg-white py-4 font-semibold text-black disabled:opacity-60"
+            >
+              {pushSending ? 'Sending...' : "Send Today's Principle Now"}
+            </button>
+
+            {pushResult && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400 leading-7">
+                {pushResult}
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">How it works</p>
+              <p className="text-sm text-zinc-400 leading-7">
+                When a member logs in, the app silently requests notification permission.
+                If they approve, their device is registered as a subscriber. Each morning
+                the cron job fetches today's principle and pushes it to every registered device.
+                Expired or inactive subscriptions are automatically cleaned up on each send.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── SHARED MESSAGE ── */}
         {message && (
           <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
             {message}
           </p>
         )}
+
       </section>
     </main>
   )
