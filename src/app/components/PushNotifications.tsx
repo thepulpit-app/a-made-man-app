@@ -1,20 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAuth } from '../lib/useAuth'
-
-// Converts the VAPID public key from base64 to Uint8Array
-// (required by the Push API)
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = window.atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; i++) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
-  return outputArray
-}
+import { useAuth } from '../../lib/useAuth'
 
 async function saveSubscription(
   subscription: PushSubscription,
@@ -39,26 +26,25 @@ export default function PushNotifications() {
 
     const setup = async () => {
       try {
-        // Register the service worker
         const registration = await navigator.serviceWorker.register('/sw.js')
 
-        // If already subscribed, just save/refresh in DB and stop
+        // If already subscribed, refresh in DB and stop
         const existing = await registration.pushManager.getSubscription()
         if (existing) {
           await saveSubscription(existing, user.id)
           return
         }
 
-        // Ask for permission — browser handles "don't ask again" automatically
+        // Ask permission — browser handles "don't ask again" automatically
         const permission = await Notification.requestPermission()
         if (permission !== 'granted') return
 
-        // Subscribe to push
+        // Pass VAPID key as a string — pushManager.subscribe accepts
+        // base64url strings directly, no Uint8Array conversion needed.
+        // This avoids all TypeScript ArrayBuffer type issues entirely.
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(
-            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
-          ),
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
         })
 
         await saveSubscription(subscription, user.id)
