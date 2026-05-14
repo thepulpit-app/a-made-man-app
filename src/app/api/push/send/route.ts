@@ -2,20 +2,15 @@ import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-// Configure VAPID — required for web push authentication
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+// Prevent Next.js from statically analysing this route at build time
+// The web-push library needs env vars that are only available at runtime
+export const dynamic = 'force-dynamic'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Same day-of-year formula used in the dashboard
-// Ensures the notification matches what users see on screen
 function getDayOfYear(): number {
   const now = new Date()
   const start = new Date(now.getFullYear(), 0, 0)
@@ -23,8 +18,6 @@ function getDayOfYear(): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-// GET — called by Vercel cron job daily at 7am Lagos time
-// POST — called manually from the admin page for test sends
 export async function GET() {
   return sendDailyPrinciple()
 }
@@ -35,7 +28,14 @@ export async function POST() {
 
 async function sendDailyPrinciple() {
   try {
-    // Get today's principle
+    // Configure VAPID inside the function — not at module level
+    // This ensures env vars are available at runtime, not build time
+    webpush.setVapidDetails(
+      process.env.VAPID_EMAIL!,
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+      process.env.VAPID_PRIVATE_KEY!
+    )
+
     const { data: principles, error: principlesError } = await supabase
       .from('daily_principles')
       .select('title, content')
@@ -52,7 +52,6 @@ async function sendDailyPrinciple() {
     const todayIndex = getDayOfYear() % principles.length
     const principle = principles[todayIndex]
 
-    // Get all push subscriptions
     const { data: subscriptions, error: subsError } = await supabase
       .from('push_subscriptions')
       .select('id, subscription')
@@ -80,15 +79,12 @@ async function sendDailyPrinciple() {
       } catch (err: any) {
         failed++
         console.error(`[push/send] failed for ${id}:`, err?.statusCode)
-
-        // 410 Gone or 404 = subscription no longer valid — remove it
         if (err.statusCode === 410 || err.statusCode === 404) {
           expired.push(id)
         }
       }
     }
 
-    // Clean up expired subscriptions
     if (expired.length > 0) {
       await supabase
         .from('push_subscriptions')
