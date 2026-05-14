@@ -4,495 +4,319 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
+import BottomNav from '../../components/BottomNav'
 
-type Resource = {
+type Pod = {
   id: string
-  title: string
+  name: string
   description: string | null
-  type: string
-  url: string | null
-  thumbnail_url: string | null
-  is_featured: boolean | null
-  display_section: string | null
+  invite_code: string
+  created_by: string
 }
 
-type Principle = {
-  id: string
-  title: string
-  content: string
+function generateInviteCode(): string {
+  return Math.random().toString(36).substring(2, 8).toUpperCase()
 }
 
-export default function AdminPage() {
-  const { user, loading, initialized } = useAuth()
+export default function PodsPage() {
+  const { user } = useAuth()
   const router = useRouter()
 
-  const adminEmails = ['topeajijola@hotmail.com']
-
-  // ── TAB ──
-  const [activeTab, setActiveTab] = useState<'principles' | 'media' | 'push'>('principles')
-
-  // ── PRINCIPLE STATES ──
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [principles, setPrinciples] = useState<Principle[]>([])
-
-  // ── RESOURCE STATES ──
-  const [resourceTitle, setResourceTitle] = useState('')
-  const [resourceDescription, setResourceDescription] = useState('')
-  const [resourceUrl, setResourceUrl] = useState('')
-  const [resourceThumbnailUrl, setResourceThumbnailUrl] = useState('')
-  const [resourceType, setResourceType] = useState('article')
-  const [resourceFeatured, setResourceFeatured] = useState(false)
-  const [resourceDisplaySection, setResourceDisplaySection] = useState('library')
-  const [editingResourceId, setEditingResourceId] = useState<string | null>(null)
-  const [resources, setResources] = useState<Resource[]>([])
-  const [uploading, setUploading] = useState(false)
-
-  // ── PUSH STATES ──
-  const [pushSending, setPushSending] = useState(false)
-  const [pushResult, setPushResult] = useState('')
-
-  // ── SHARED ──
+  const [pods, setPods] = useState<Pod[]>([])
+  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
 
-  // ── AUTH GUARD ──
-  useEffect(() => {
-    if (!initialized) return
-    if (!loading && !user) router.push('/login')
-    if (!loading && user && !adminEmails.includes(user.email || '')) router.push('/dashboard')
-  }, [user, loading, initialized, router])
+  // Create form
+  const [showCreate, setShowCreate] = useState(false)
+  const [podName, setPodName] = useState('')
+  const [podDescription, setPodDescription] = useState('')
+  const [creating, setCreating] = useState(false)
 
-  // ── FETCH DATA ──
-  const fetchResources = async () => {
-    const { data } = await supabase
-      .from('resources')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (data) setResources(data)
-  }
+  // Join form
+  const [showJoin, setShowJoin] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [joining, setJoining] = useState(false)
 
-  const fetchPrinciples = async () => {
-    const { data } = await supabase
-      .from('daily_principles')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (data) setPrinciples(data)
-  }
+  const fetchPods = async () => {
+    if (!user) return
 
-  useEffect(() => {
-    fetchResources()
-    fetchPrinciples()
-  }, [])
+    // Get pods the user is a member of
+    const { data: memberships } = await supabase
+      .from('pod_members')
+      .select('pod_id')
+      .eq('user_id', user.id)
 
-  // ── PRINCIPLE ACTIONS ──
-  const addPrinciple = async () => {
-    if (!title || !content) {
-      setMessage('Please add both a title and content.')
+    if (!memberships || memberships.length === 0) {
+      setPods([])
+      setLoading(false)
       return
     }
-    setMessage('Saving principle...')
-    const { error } = await supabase
-      .from('daily_principles')
-      .insert([{ title, content }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle added.')
-    setTitle('')
-    setContent('')
-    fetchPrinciples()
+
+    const podIds = memberships.map((m) => m.pod_id)
+
+    const { data, error } = await supabase
+      .from('pods')
+      .select('*')
+      .in('id', podIds)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) setPods(data)
+    setLoading(false)
   }
 
-  const deletePrinciple = async (id: string) => {
-    if (!confirm('Delete this principle?')) return
-    const { error } = await supabase
-      .from('daily_principles')
-      .delete()
-      .eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Principle deleted.')
-    fetchPrinciples()
-  }
+  useEffect(() => {
+    fetchPods()
+  }, [user])
 
-  // ── RESOURCE ACTIONS ──
-  const resetResourceForm = () => {
-    setResourceTitle('')
-    setResourceDescription('')
-    setResourceUrl('')
-    setResourceThumbnailUrl('')
-    setResourceType('article')
-    setResourceFeatured(false)
-    setResourceDisplaySection('library')
-    setEditingResourceId(null)
-  }
-
-  const uploadImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      setUploading(true)
-      const file = event.target.files?.[0]
-      if (!file) return
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}.${fileExt}`
-      const { error } = await supabase.storage.from('media').upload(fileName, file)
-      if (error) { setMessage(error.message); return }
-      const { data } = supabase.storage.from('media').getPublicUrl(fileName)
-      setResourceThumbnailUrl(data.publicUrl)
-      setMessage('Image uploaded.')
-    } catch {
-      setMessage('Image upload failed.')
-    } finally {
-      setUploading(false)
+  const createPod = async () => {
+    if (!user || !podName.trim()) {
+      setMessage('Please enter a pod name.')
+      return
     }
-  }
 
-  const addResource = async () => {
-    setMessage('Saving resource...')
-    const { error } = await supabase.from('resources').insert([{
-      title: resourceTitle,
-      description: resourceDescription,
-      type: resourceType,
-      url: resourceUrl,
-      thumbnail_url: resourceThumbnailUrl,
-      is_featured: resourceFeatured,
-      display_section: resourceDisplaySection,
-    }])
-    if (error) { setMessage(error.message); return }
-    setMessage('Resource added.')
-    resetResourceForm()
-    fetchResources()
-  }
+    setCreating(true)
+    setMessage('')
 
-  const startEditResource = (resource: Resource) => {
-    setEditingResourceId(resource.id)
-    setResourceTitle(resource.title || '')
-    setResourceDescription(resource.description || '')
-    setResourceUrl(resource.url || '')
-    setResourceThumbnailUrl(resource.thumbnail_url || '')
-    setResourceType(resource.type || 'article')
-    setResourceFeatured(Boolean(resource.is_featured))
-    setResourceDisplaySection(resource.display_section || 'library')
-    setMessage('Editing media item.')
-  }
+    const code = generateInviteCode()
 
-  const updateResource = async () => {
-    if (!editingResourceId) return
-    const { error } = await supabase.from('resources').update({
-      title: resourceTitle,
-      description: resourceDescription,
-      type: resourceType,
-      url: resourceUrl,
-      thumbnail_url: resourceThumbnailUrl,
-      is_featured: resourceFeatured,
-      display_section: resourceDisplaySection,
-    }).eq('id', editingResourceId)
-    if (error) { setMessage(error.message); return }
-    setMessage('Resource updated.')
-    resetResourceForm()
-    fetchResources()
-  }
+    const { data: newPod, error } = await supabase
+      .from('pods')
+      .insert({
+        name: podName.trim(),
+        description: podDescription.trim() || null,
+        invite_code: code,
+        created_by: user.id,
+      })
+      .select()
+      .single()
 
-  const deleteResource = async (id: string) => {
-    if (!confirm('Delete this media item?')) return
-    const { error } = await supabase.from('resources').delete().eq('id', id)
-    if (error) { setMessage(error.message); return }
-    setMessage('Media deleted.')
-    fetchResources()
-  }
-
-  // ── PUSH ACTIONS ──
-  const sendDailyPush = async () => {
-    setPushSending(true)
-    setPushResult('Sending...')
-    try {
-      const res = await fetch('/api/push/send', { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setPushResult(
-          `Sent to ${data.sent} subscriber${data.sent !== 1 ? 's' : ''}. Principle: "${data.principle}"`
-        )
-      } else {
-        setPushResult(data.error || data.message || 'Something went wrong.')
-      }
-    } catch {
-      setPushResult('Failed — check Vercel logs.')
-    } finally {
-      setPushSending(false)
+    if (error) {
+      setMessage(error.message)
+      setCreating(false)
+      return
     }
+
+    // Auto-join as first member
+    await supabase.from('pod_members').insert({
+      pod_id: newPod.id,
+      user_id: user.id,
+    })
+
+    setCreating(false)
+    setShowCreate(false)
+    setPodName('')
+    setPodDescription('')
+    setMessage('')
+    fetchPods()
   }
 
-  if (loading || !initialized) return null
-  if (!user || !adminEmails.includes(user.email || '')) return null
+  const joinPod = async () => {
+    if (!user || !inviteCode.trim()) {
+      setMessage('Please enter an invite code.')
+      return
+    }
+
+    setJoining(true)
+    setMessage('')
+
+    // Find pod by invite code
+    const { data: pod, error: podError } = await supabase
+      .from('pods')
+      .select('*')
+      .eq('invite_code', inviteCode.trim().toUpperCase())
+      .single()
+
+    if (podError || !pod) {
+      setMessage('Invite code not found. Check and try again.')
+      setJoining(false)
+      return
+    }
+
+    // Check not already a member
+    const { data: existing } = await supabase
+      .from('pod_members')
+      .select('id')
+      .eq('pod_id', pod.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (existing) {
+      setMessage("You're already in this pod.")
+      setJoining(false)
+      return
+    }
+
+    // Check pod size (max 7)
+    const { count } = await supabase
+      .from('pod_members')
+      .select('id', { count: 'exact' })
+      .eq('pod_id', pod.id)
+
+    if (count && count >= 7) {
+      setMessage('This pod is full (max 7 brothers).')
+      setJoining(false)
+      return
+    }
+
+    const { error: joinError } = await supabase
+      .from('pod_members')
+      .insert({ pod_id: pod.id, user_id: user.id })
+
+    if (joinError) {
+      setMessage(joinError.message)
+      setJoining(false)
+      return
+    }
+
+    setJoining(false)
+    setShowJoin(false)
+    setInviteCode('')
+    fetchPods()
+    router.push(`/pods/${pod.id}`)
+  }
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <section className="mx-auto max-w-md space-y-10">
+    <main className="min-h-screen bg-black px-6 pb-24 pt-8 text-white">
+      <section className="mx-auto max-w-md space-y-8">
 
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Admin</p>
-          <h1 className="mt-2 text-3xl font-bold">A MADE MAN Control Room</h1>
+          <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Brotherhood</p>
+          <h1 className="mt-3 text-4xl font-black">Accountability Pods</h1>
+          <p className="mt-3 text-zinc-400">
+            Small groups of 5–7 men. Weekly check-ins. Private accountability.
+            Real brotherhood.
+          </p>
         </div>
 
-        {/* ── TABS ── */}
-        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
-          {(['principles', 'media', 'push'] as const).map(tab => (
+        {/* Create / Join buttons */}
+        {!showCreate && !showJoin && (
+          <div className="grid grid-cols-2 gap-3">
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl py-3 text-sm font-semibold capitalize transition-all ${
-                activeTab === tab ? 'bg-white text-black' : 'text-zinc-400'
-              }`}
+              onClick={() => setShowCreate(true)}
+              className="rounded-2xl bg-white py-4 font-semibold text-black"
             >
-              {tab === 'push' ? 'Push' : tab === 'principles' ? 'Principles' : 'Media'}
+              Create a Pod
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => setShowJoin(true)}
+              className="rounded-2xl border border-zinc-700 py-4 font-semibold"
+            >
+              Join a Pod
+            </button>
+          </div>
+        )}
 
-        {/* ── PRINCIPLES TAB ── */}
-        {activeTab === 'principles' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold">Add a Daily Principle</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                {principles.length} principle{principles.length !== 1 ? 's' : ''} in rotation
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Principle title e.g. HARD WORK IS AN ACT OF WORSHIP"
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-              />
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Full principle content shown to members on the dashboard"
-                className="min-h-36 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-              />
+        {/* Create form */}
+        {showCreate && (
+          <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+            <h2 className="text-xl font-bold">Create a Pod</h2>
+            <input
+              value={podName}
+              onChange={(e) => setPodName(e.target.value)}
+              placeholder="Pod name e.g. Iron Brotherhood"
+              className="w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
+            />
+            <textarea
+              value={podDescription}
+              onChange={(e) => setPodDescription(e.target.value)}
+              placeholder="What is this pod about? (optional)"
+              className="min-h-24 w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
+            />
+            <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={addPrinciple}
-                className="w-full rounded-2xl bg-white py-3 font-semibold text-black"
+                onClick={createPod}
+                disabled={creating}
+                className="rounded-2xl bg-white py-3 font-semibold text-black disabled:opacity-60"
               >
-                Add Principle
+                {creating ? 'Creating...' : 'Create Pod'}
+              </button>
+              <button
+                onClick={() => { setShowCreate(false); setMessage('') }}
+                className="rounded-2xl border border-zinc-700 py-3"
+              >
+                Cancel
               </button>
             </div>
-
-            <div className="space-y-3 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">All Principles</h3>
-              {principles.length === 0 && (
-                <p className="text-sm text-zinc-500">No principles added yet.</p>
-              )}
-              {principles.map((p) => (
-                <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                  <p className="font-semibold">{p.title}</p>
-                  <p className="mt-2 text-sm leading-7 text-zinc-400">{p.content}</p>
-                  <button
-                    onClick={() => deletePrinciple(p.id)}
-                    className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
-        {/* ── MEDIA TAB ── */}
-        {activeTab === 'media' && (
-          <div className="space-y-6">
-            <h2 className="text-xl font-bold">
-              {editingResourceId ? 'Edit Media Item' : 'Add Media'}
-            </h2>
-
-            <div className="space-y-4">
-              <input
-                value={resourceTitle}
-                onChange={(e) => setResourceTitle(e.target.value)}
-                placeholder="Media title"
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-              />
-              <textarea
-                value={resourceDescription}
-                onChange={(e) => setResourceDescription(e.target.value)}
-                placeholder="Media description"
-                className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-              />
-              <input
-                value={resourceUrl}
-                onChange={(e) => setResourceUrl(e.target.value)}
-                placeholder="Video URL (optional)"
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
-              />
-
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <p className="mb-3 text-sm text-zinc-400">Upload Thumbnail Image</p>
-                <input type="file" accept="image/*" onChange={uploadImage} />
-                {uploading && <p className="mt-3 text-sm text-zinc-500">Uploading...</p>}
-              </div>
-
-              {resourceThumbnailUrl && (
-                <img
-                  src={resourceThumbnailUrl}
-                  alt="Thumbnail"
-                  className="h-52 w-full rounded-3xl object-cover"
-                />
-              )}
-
-              <select
-                value={resourceType}
-                onChange={(e) => setResourceType(e.target.value)}
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
+        {/* Join form */}
+        {showJoin && (
+          <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
+            <h2 className="text-xl font-bold">Join a Pod</h2>
+            <p className="text-sm text-zinc-500">
+              Ask a brother already in the pod for the 6-character invite code.
+            </p>
+            <input
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="Enter invite code e.g. AB12CD"
+              className="w-full rounded-2xl border border-zinc-800 bg-black p-4 uppercase outline-none tracking-widest"
+              maxLength={6}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={joinPod}
+                disabled={joining}
+                className="rounded-2xl bg-white py-3 font-semibold text-black disabled:opacity-60"
               >
-                <option value="article">Article</option>
-                <option value="replay">Conference Replay</option>
-                <option value="video">Video</option>
-                <option value="short">Short / Edit</option>
-                <option value="podcast">Podcast Episode</option>
-              </select>
-
-              <select
-                value={resourceDisplaySection}
-                onChange={(e) => setResourceDisplaySection(e.target.value)}
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none"
+                {joining ? 'Joining...' : 'Join Pod'}
+              </button>
+              <button
+                onClick={() => { setShowJoin(false); setMessage('') }}
+                className="rounded-2xl border border-zinc-700 py-3"
               >
-                <option value="library">General Library</option>
-                <option value="hero">Homepage Hero</option>
-                <option value="conversation">Featured Conversation</option>
-                <option value="shorts">Shorts Rail</option>
-                <option value="replay">Conference Replay</option>
-                <option value="podcast">Podcast Episode</option>
-                <option value="article">Article</option>
-              </select>
-
-              <label className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
-                <input
-                  type="checkbox"
-                  checked={resourceFeatured}
-                  onChange={(e) => setResourceFeatured(e.target.checked)}
-                />
-                Feature this media
-              </label>
-
-              {editingResourceId ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={updateResource}
-                    className="rounded-2xl bg-white py-3 font-semibold text-black"
-                  >
-                    Update Media
-                  </button>
-                  <button
-                    onClick={resetResourceForm}
-                    className="rounded-2xl border border-zinc-700 py-3"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={addResource}
-                  className="w-full rounded-2xl bg-white py-3 font-semibold text-black"
-                >
-                  Save Media
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-4 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">
-                All Media ({resources.length} items)
-              </h3>
-              {resources.map((resource) => (
-                <div
-                  key={resource.id}
-                  className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4"
-                >
-                  {resource.thumbnail_url && (
-                    <img
-                      src={resource.thumbnail_url}
-                      alt={resource.title}
-                      className="h-40 w-full rounded-2xl object-cover"
-                    />
-                  )}
-                  <div>
-                    <p className="font-semibold">{resource.title}</p>
-                    <p className="text-sm text-zinc-500">{resource.type}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-600">
-                      {resource.display_section}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => { startEditResource(resource); }}
-                      className="rounded-xl border border-zinc-700 px-3 py-2 text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteResource(resource.id)}
-                      className="rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+                Cancel
+              </button>
             </div>
           </div>
         )}
 
-        {/* ── PUSH TAB ── */}
-        {activeTab === 'push' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold">Push Notifications</h2>
-              <p className="mt-2 text-sm text-zinc-500 leading-7">
-                The daily principle is automatically sent to all subscribers every morning
-                at 7am Lagos time via Vercel cron. Use the button below to send a manual
-                push immediately — useful for testing or special announcements.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Schedule</p>
-              <p className="text-lg font-semibold">Every day at 7:00 AM</p>
-              <p className="text-sm text-zinc-400">Lagos / West Africa Time (WAT)</p>
-            </div>
-
-            <button
-              onClick={sendDailyPush}
-              disabled={pushSending}
-              className="w-full rounded-2xl bg-white py-4 font-semibold text-black disabled:opacity-60"
-            >
-              {pushSending ? 'Sending...' : "Send Today's Principle Now"}
-            </button>
-
-            {pushResult && (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400 leading-7">
-                {pushResult}
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">How it works</p>
-              <p className="text-sm text-zinc-400 leading-7">
-                When a member logs in, the app silently requests notification permission.
-                If they approve, their device is registered as a subscriber. Each morning
-                the cron job fetches today's principle and pushes it to every registered device.
-                Expired or inactive subscriptions are automatically cleaned up on each send.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* ── SHARED MESSAGE ── */}
         {message && (
-          <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
+          <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
             {message}
           </p>
         )}
 
+        {/* Pods list */}
+        <div className="space-y-4">
+          {loading ? (
+            <p className="text-sm text-zinc-500">Loading your pods...</p>
+          ) : pods.length === 0 ? (
+            <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 text-center">
+              <p className="text-zinc-400">You're not in any pods yet.</p>
+              <p className="mt-2 text-sm text-zinc-600">
+                Create one or ask a brother for an invite code.
+              </p>
+            </div>
+          ) : (
+            pods.map((pod) => (
+              <button
+                key={pod.id}
+                onClick={() => router.push(`/pods/${pod.id}`)}
+                className="w-full rounded-3xl border border-zinc-800 bg-zinc-950 p-5 text-left transition-colors hover:border-zinc-600"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-bold">{pod.name}</h2>
+                    {pod.description && (
+                      <p className="mt-1 text-sm text-zinc-400">{pod.description}</p>
+                    )}
+                    <p className="mt-3 text-xs uppercase tracking-[0.2em] text-zinc-600">
+                      Code: {pod.invite_code}
+                    </p>
+                  </div>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="mt-1 flex-shrink-0 text-zinc-600">
+                    <path d="M4 10h12M10 4l6 6-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+
       </section>
+      <BottomNav />
     </main>
   )
 }

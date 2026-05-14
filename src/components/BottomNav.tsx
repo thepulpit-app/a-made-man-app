@@ -2,91 +2,112 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+
+const navItems = [
+  {
+    label: 'Home',
+    href: '/dashboard',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path
+          d="M3 9.5L11 3l8 6.5V19a1 1 0 01-1 1H14v-5h-4v5H4a1 1 0 01-1-1V9.5z"
+          stroke="currentColor"
+          strokeWidth={active ? '2' : '1.5'}
+          fill={active ? 'currentColor' : 'none'}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    label: 'Reflect',
+    href: '/reflect',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path
+          d="M11 2a9 9 0 100 18A9 9 0 0011 2z"
+          stroke="currentColor"
+          strokeWidth={active ? '2' : '1.5'}
+          fill={active ? 'currentColor' : 'none'}
+        />
+        <path
+          d="M11 7v4l3 3"
+          stroke={active ? 'white' : 'currentColor'}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    label: 'Pods',
+    href: '/pods',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="11" cy="8" r="3" stroke="currentColor" strokeWidth={active ? '2' : '1.5'} fill={active ? 'currentColor' : 'none'} />
+        <circle cx="4" cy="14" r="2.5" stroke="currentColor" strokeWidth={active ? '2' : '1.5'} fill={active ? 'currentColor' : 'none'} />
+        <circle cx="18" cy="14" r="2.5" stroke="currentColor" strokeWidth={active ? '2' : '1.5'} fill={active ? 'currentColor' : 'none'} />
+        <path d="M7 19c0-2 1.8-3.5 4-3.5s4 1.5 4 3.5" stroke="currentColor" strokeWidth={active ? '2' : '1.5'} strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Community',
+    href: '/community',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path
+          d="M20 2H2v14h6l3 4 3-4h6V2z"
+          stroke="currentColor"
+          strokeWidth={active ? '2' : '1.5'}
+          fill={active ? 'currentColor' : 'none'}
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    label: 'More',
+    href: '/about',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <circle cx="5" cy="11" r="1.5" fill="currentColor" />
+        <circle cx="11" cy="11" r="1.5" fill="currentColor" />
+        <circle cx="17" cy="11" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+  },
+]
 
 export default function BottomNav() {
   const pathname = usePathname()
-  const [moreOpen, setMoreOpen] = useState(false)
-
-  const navItems = [
-    { label: 'Home', href: '/dashboard' },
-    { label: 'Reflect', href: '/reflect' },
-    { label: 'Media', href: '/resources' },
-    { label: 'Community', href: '/community' },
-  ]
 
   return (
-    <>
-      {moreOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60"
-          onClick={() => setMoreOpen(false)}
-        />
-      )}
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-900 bg-black">
+      <div className="mx-auto flex max-w-md items-center justify-around px-2 py-3">
+        {navItems.map((item) => {
+          const active =
+            item.href === '/dashboard'
+              ? pathname === '/dashboard'
+              : pathname.startsWith(item.href)
 
-      {moreOpen && (
-        <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-5 text-white shadow-2xl">
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
-            More
-          </p>
-
-          <div className="mt-4 grid gap-3">
+          return (
             <Link
-              href="/reflections"
-              onClick={() => setMoreOpen(false)}
-              className="rounded-2xl border border-zinc-800 bg-black p-4"
+              key={item.href}
+              href={item.href}
+              className={`flex flex-col items-center gap-1 px-3 transition-colors ${
+                active ? 'text-white' : 'text-zinc-600'
+              }`}
             >
-              <p className="font-semibold">Journal</p>
-              <p className="mt-1 text-sm text-zinc-500">
-                Saved reflections and personal growth archive.
-              </p>
-            </Link>
-
-            <Link
-              href="/about"
-              onClick={() => setMoreOpen(false)}
-              className="rounded-2xl border border-zinc-800 bg-black p-4"
-            >
-              <p className="font-semibold">About</p>
-              <p className="mt-1 text-sm text-zinc-500">
-                The movement, foundation, and mandate behind A MADE MAN.
-              </p>
-            </Link>
-          </div>
-        </div>
-      )}
-
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-800 bg-black/95 backdrop-blur">
-        <div className="mx-auto flex max-w-md items-center justify-between px-5 py-4">
-          {navItems.map((item) => {
-            const active = pathname === item.href
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-xs ${
-                  active ? 'font-semibold text-white' : 'text-zinc-500'
-                }`}
-              >
+              {item.icon(active)}
+              <span className="text-[10px] font-medium tracking-wide">
                 {item.label}
-              </Link>
-            )
-          })}
-
-          <button
-            type="button"
-            onClick={() => setMoreOpen(!moreOpen)}
-            className={`text-xs ${
-              pathname === '/about' || pathname === '/reflections' || moreOpen
-                ? 'font-semibold text-white'
-                : 'text-zinc-500'
-            }`}
-          >
-            More
-          </button>
-        </div>
-      </nav>
-    </>
+              </span>
+            </Link>
+          )
+        })}
+      </div>
+    </nav>
   )
 }
