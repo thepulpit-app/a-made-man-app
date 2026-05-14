@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useAuth } from '../../lib/useAuth'
+import { useAuth } from '../lib/useAuth'
+
 
 async function saveSubscription(
   subscription: PushSubscription,
