@@ -183,6 +183,22 @@ export default function HomePage() {
         </section>
       )}
 
+<footer className="border-t border-zinc-900 px-6 py-8">
+  <div className="mx-auto max-w-md flex items-center justify-between">
+    <p className="text-xs text-zinc-600">
+      &copy; 2026 A MADE MAN
+    </p>
+    <div className="flex gap-5">
+      <a href="/privacy" className="text-xs text-zinc-500 underline hover:text-zinc-300">
+        Privacy Policy
+      </a>
+      <a href="/terms" className="text-xs text-zinc-500 underline hover:text-zinc-300">
+        Terms of Service
+      </a>
+    </div>
+  </div>
+</footer>
+
       <section className="border-t border-zinc-900 px-6 py-16">
         <div className="mx-auto max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-6">
           <h2 className="text-3xl font-bold">Enter the brotherhood.</h2>
