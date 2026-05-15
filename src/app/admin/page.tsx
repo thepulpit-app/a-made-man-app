@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
@@ -65,14 +66,12 @@ export default function AdminPage() {
   // Shared
   const [message, setMessage] = useState('')
 
-  // Auth guard
   useEffect(() => {
     if (!initialized) return
     if (!loading && !user) router.push('/login')
     if (!loading && user && !adminEmails.includes(user.email || '')) router.push('/dashboard')
   }, [user, loading, initialized, router])
 
-  // Fetch all data
   const fetchResources = async () => {
     const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false })
     if (data) setResources(data)
@@ -84,7 +83,7 @@ export default function AdminPage() {
   }
 
   const fetchPrompts = async () => {
-    const { data } = await supabase.from('pod_prompts').select('*').order('week_number', { ascending: false })
+    const { data } = await supabase.from('pod_prompts').select('*').order('week_number', { ascending: true })
     if (data) setPrompts(data)
   }
 
@@ -94,15 +93,13 @@ export default function AdminPage() {
     fetchPrompts()
   }, [])
 
-  // Principle actions
   const addPrinciple = async () => {
     if (!title || !content) { setMessage('Please add both a title and content.'); return }
     setMessage('Saving principle...')
     const { error } = await supabase.from('daily_principles').insert([{ title, content }])
     if (error) { setMessage(error.message); return }
     setMessage('Principle added.')
-    setTitle('')
-    setContent('')
+    setTitle(''); setContent('')
     fetchPrinciples()
   }
 
@@ -114,7 +111,6 @@ export default function AdminPage() {
     fetchPrinciples()
   }
 
-  // Resource actions
   const resetResourceForm = () => {
     setResourceTitle(''); setResourceDescription(''); setResourceUrl('')
     setResourceThumbnailUrl(''); setResourceType('article')
@@ -147,8 +143,7 @@ export default function AdminPage() {
     }])
     if (error) { setMessage(error.message); return }
     setMessage('Resource added.')
-    resetResourceForm()
-    fetchResources()
+    resetResourceForm(); fetchResources()
   }
 
   const startEditResource = (resource: Resource) => {
@@ -169,24 +164,18 @@ export default function AdminPage() {
     }).eq('id', editingResourceId)
     if (error) { setMessage(error.message); return }
     setMessage('Resource updated.')
-    resetResourceForm()
-    fetchResources()
+    resetResourceForm(); fetchResources()
   }
 
   const deleteResource = async (id: string) => {
     if (!confirm('Delete this media item?')) return
     const { error } = await supabase.from('resources').delete().eq('id', id)
     if (error) { setMessage(error.message); return }
-    setMessage('Media deleted.')
-    fetchResources()
+    setMessage('Media deleted.'); fetchResources()
   }
 
-  // Prompt actions
   const addPrompt = async () => {
-    if (!promptQuestion.trim() || !promptWeek) {
-      setMessage('Please enter a question and week number.')
-      return
-    }
+    if (!promptQuestion.trim() || !promptWeek) { setMessage('Please enter a question and week number.'); return }
     setMessage('Saving prompt...')
     const { error } = await supabase.from('pod_prompts').insert([{
       question: promptQuestion.trim(),
@@ -195,8 +184,7 @@ export default function AdminPage() {
     }])
     if (error) { setMessage(error.message); return }
     setMessage('Prompt added.')
-    setPromptQuestion('')
-    setPromptWeek('')
+    setPromptQuestion(''); setPromptWeek('')
     fetchPrompts()
   }
 
@@ -204,14 +192,11 @@ export default function AdminPage() {
     if (!confirm('Delete this prompt?')) return
     const { error } = await supabase.from('pod_prompts').delete().eq('id', id)
     if (error) { setMessage(error.message); return }
-    setMessage('Prompt deleted.')
-    fetchPrompts()
+    setMessage('Prompt deleted.'); fetchPrompts()
   }
 
-  // Push actions
   const sendDailyPush = async () => {
-    setPushSending(true)
-    setPushResult('Sending...')
+    setPushSending(true); setPushResult('Sending...')
     try {
       const res = await fetch('/api/push/send', { method: 'POST' })
       const data = await res.json()
@@ -220,11 +205,8 @@ export default function AdminPage() {
       } else {
         setPushResult(data.error || data.message || 'Something went wrong.')
       }
-    } catch {
-      setPushResult('Failed — check Vercel logs.')
-    } finally {
-      setPushSending(false)
-    }
+    } catch { setPushResult('Failed — check Vercel logs.') }
+    finally { setPushSending(false) }
   }
 
   if (loading || !initialized) return null
@@ -234,29 +216,38 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <section className="mx-auto max-w-md space-y-10">
+      <section className="mx-auto max-w-md space-y-8">
 
-        <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Admin</p>
-          <h1 className="mt-2 text-3xl font-bold">A MADE MAN Control Room</h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-zinc-500">Admin</p>
+            <h1 className="mt-2 text-3xl font-bold">Control Room</h1>
+          </div>
+          {/* Analytics shortcut */}
+          <Link
+            href="/admin/analytics"
+            className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:border-white hover:text-white transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 12l4-4 3 3 5-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Analytics
+          </Link>
         </div>
 
         {/* Tabs */}
         <div className="grid grid-cols-4 gap-1 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
           {tabs.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+            <button key={tab} onClick={() => setActiveTab(tab)}
               className={`rounded-xl py-3 text-xs font-semibold capitalize transition-all ${
                 activeTab === tab ? 'bg-white text-black' : 'text-zinc-400'
-              }`}
-            >
+              }`}>
               {tab === 'principles' ? 'Daily' : tab === 'prompts' ? 'Pods' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
 
-        {/* ── PRINCIPLES TAB ── */}
+        {/* PRINCIPLES */}
         {activeTab === 'principles' && (
           <div className="space-y-6">
             <div>
@@ -264,15 +255,9 @@ export default function AdminPage() {
               <p className="mt-1 text-sm text-zinc-500">{principles.length} principle{principles.length !== 1 ? 's' : ''} in rotation</p>
             </div>
             <div className="space-y-4">
-              <input value={title} onChange={(e) => setTitle(e.target.value)}
-                placeholder="Principle title e.g. HARD WORK IS AN ACT OF WORSHIP"
-                className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <textarea value={content} onChange={(e) => setContent(e.target.value)}
-                placeholder="Full principle content shown to members on the dashboard"
-                className="min-h-36 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
-              <button onClick={addPrinciple} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">
-                Add Principle
-              </button>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Principle title" className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
+              <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Full principle content" className="min-h-36 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
+              <button onClick={addPrinciple} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">Add Principle</button>
             </div>
             <div className="space-y-3 border-t border-zinc-800 pt-6">
               <h3 className="text-lg font-semibold">All Principles</h3>
@@ -281,17 +266,14 @@ export default function AdminPage() {
                 <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                   <p className="font-semibold">{p.title}</p>
                   <p className="mt-2 text-sm leading-7 text-zinc-400">{p.content}</p>
-                  <button onClick={() => deletePrinciple(p.id)}
-                    className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400">
-                    Delete
-                  </button>
+                  <button onClick={() => deletePrinciple(p.id)} className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400">Delete</button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── MEDIA TAB ── */}
+        {/* MEDIA */}
         {activeTab === 'media' && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold">{editingResourceId ? 'Edit Media Item' : 'Add Media'}</h2>
@@ -300,7 +282,7 @@ export default function AdminPage() {
               <textarea value={resourceDescription} onChange={(e) => setResourceDescription(e.target.value)} placeholder="Media description" className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
               <input value={resourceUrl} onChange={(e) => setResourceUrl(e.target.value)} placeholder="Video URL (optional)" className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-4 outline-none" />
               <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <p className="mb-3 text-sm text-zinc-400">Upload Thumbnail Image</p>
+                <p className="mb-3 text-sm text-zinc-400">Upload Thumbnail</p>
                 <input type="file" accept="image/*" onChange={uploadImage} />
                 {uploading && <p className="mt-3 text-sm text-zinc-500">Uploading...</p>}
               </div>
@@ -327,7 +309,7 @@ export default function AdminPage() {
               </label>
               {editingResourceId ? (
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={updateResource} className="rounded-2xl bg-white py-3 font-semibold text-black">Update Media</button>
+                  <button onClick={updateResource} className="rounded-2xl bg-white py-3 font-semibold text-black">Update</button>
                   <button onClick={resetResourceForm} className="rounded-2xl border border-zinc-700 py-3">Cancel</button>
                 </div>
               ) : (
@@ -335,7 +317,7 @@ export default function AdminPage() {
               )}
             </div>
             <div className="space-y-4 border-t border-zinc-800 pt-6">
-              <h3 className="text-lg font-semibold">All Media ({resources.length} items)</h3>
+              <h3 className="text-lg font-semibold">All Media ({resources.length})</h3>
               {resources.map((resource) => (
                 <div key={resource.id} className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                   {resource.thumbnail_url && <img src={resource.thumbnail_url} alt={resource.title} className="h-40 w-full rounded-2xl object-cover" />}
@@ -354,18 +336,15 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── PROMPTS TAB ── */}
+        {/* PROMPTS */}
         {activeTab === 'prompts' && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-bold">Pod Weekly Prompts</h2>
               <p className="mt-2 text-sm text-zinc-500 leading-7">
-                Add all your prompts here once — ordered by week number. The app automatically
-                shows the right prompt each week based on weeks elapsed since launch (May 5, 2026).
-                No manual activation needed. Prompts cycle endlessly.
+                Add all prompts here once. The app automatically shows the right one each week based on weeks elapsed since launch (May 5, 2026). Prompts cycle endlessly.
               </p>
             </div>
-
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 space-y-1">
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Currently Active</p>
               <p className="text-lg font-bold">
@@ -374,76 +353,46 @@ export default function AdminPage() {
                   : 'No prompts loaded yet'}
               </p>
             </div>
-
             <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
               <h3 className="font-semibold">Add New Prompt</h3>
-              <textarea
-                value={promptQuestion}
-                onChange={(e) => setPromptQuestion(e.target.value)}
-                placeholder="e.g. What's one area where you showed discipline this week? Be specific."
-                className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
-              />
-              <input
-                type="number"
-                value={promptWeek}
-                onChange={(e) => setPromptWeek(e.target.value)}
-                placeholder="Week number e.g. 1"
-                className="w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none"
-                min="1"
-              />
-              <button onClick={addPrompt} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">
-                Add Prompt
-              </button>
+              <textarea value={promptQuestion} onChange={(e) => setPromptQuestion(e.target.value)} placeholder="e.g. What's one area where you showed discipline this week?" className="min-h-28 w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none" />
+              <input type="number" value={promptWeek} onChange={(e) => setPromptWeek(e.target.value)} placeholder="Week number e.g. 1" className="w-full rounded-2xl border border-zinc-800 bg-black p-4 outline-none" min="1" />
+              <button onClick={addPrompt} className="w-full rounded-2xl bg-white py-3 font-semibold text-black">Add Prompt</button>
             </div>
-
             <div className="space-y-3 border-t border-zinc-800 pt-6">
               <h3 className="text-lg font-semibold">All Prompts ({prompts.length})</h3>
-              {prompts.length === 0 && <p className="text-sm text-zinc-500">No prompts yet. Add your 12 weekly questions above.</p>}
+              {prompts.length === 0 && <p className="text-sm text-zinc-500">No prompts yet.</p>}
               {prompts.map((p) => (
                 <div key={p.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                   <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-2">Week {p.week_number}</p>
                   <p className="leading-7 text-zinc-300">{p.question}</p>
-                  <button
-                    onClick={() => deletePrompt(p.id)}
-                    className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400"
-                  >
-                    Delete
-                  </button>
+                  <button onClick={() => deletePrompt(p.id)} className="mt-3 rounded-xl border border-red-900 px-3 py-2 text-sm text-red-400">Delete</button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── PUSH TAB ── */}
+        {/* PUSH */}
         {activeTab === 'push' && (
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-bold">Push Notifications</h2>
-              <p className="mt-2 text-sm text-zinc-500 leading-7">
-                The daily principle is automatically sent to all subscribers every morning at 7am Lagos time. Use the button below to send manually for testing or special announcements.
-              </p>
+              <p className="mt-2 text-sm text-zinc-500 leading-7">Automatically sent at 7am Lagos time daily. Use the button below to send manually.</p>
             </div>
             <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-3">
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Schedule</p>
               <p className="text-lg font-semibold">Every day at 7:00 AM</p>
               <p className="text-sm text-zinc-400">Lagos / West Africa Time (WAT)</p>
             </div>
-            <button onClick={sendDailyPush} disabled={pushSending}
-              className="w-full rounded-2xl bg-white py-4 font-semibold text-black disabled:opacity-60">
+            <button onClick={sendDailyPush} disabled={pushSending} className="w-full rounded-2xl bg-white py-4 font-semibold text-black disabled:opacity-60">
               {pushSending ? 'Sending...' : "Send Today's Principle Now"}
             </button>
-            {pushResult && (
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400 leading-7">
-                {pushResult}
-              </div>
-            )}
+            {pushResult && <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400 leading-7">{pushResult}</div>}
           </div>
         )}
 
-        {message && (
-          <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">{message}</p>
-        )}
+        {message && <p className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">{message}</p>}
 
       </section>
     </main>
