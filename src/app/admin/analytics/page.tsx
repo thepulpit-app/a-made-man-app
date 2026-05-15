@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../lib/useAuth'
+import { supabase } from '../../../lib/supabase'
+import { useAuth } from '../../../lib/useAuth'
 
 type Stats = {
   totalUsers: number
