@@ -15,15 +15,15 @@ export default function LoginPage() {
   const [isSigningUp, setIsSigningUp] = useState(false)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
 
-  // FIX: Already logged in — go straight to dashboard, skip login form
+  // Already logged in — skip login
   useEffect(() => {
     if (initialized && user) {
       router.replace('/dashboard')
     }
   }, [initialized, user, router])
 
-  // Don't flash the login form while the session check is running
   if (!initialized || user) return null
 
   const handleLogin = async () => {
@@ -71,6 +71,25 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true)
+    setMessage('')
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) {
+      setMessage(error.message)
+      setGoogleLoading(false)
+    }
+    // No need to setGoogleLoading(false) on success
+    // — the page will redirect to Google immediately
+  }
+
   const handleForgotPassword = async () => {
     if (!email) {
       setMessage('Enter your email first, then click forgot password.')
@@ -106,6 +125,33 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Google Sign In */}
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={googleLoading || loading}
+          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-950 py-4 font-semibold text-white transition-colors hover:border-zinc-500 disabled:opacity-60"
+        >
+          {googleLoading ? (
+            <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.4a4.6 4.6 0 01-2 3.02v2.5h3.24c1.9-1.75 3-4.33 3-7.31z" fill="#4285F4"/>
+              <path d="M10 20c2.7 0 4.96-.9 6.62-2.43l-3.24-2.51c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H1.08v2.6A10 10 0 0010 20z" fill="#34A853"/>
+              <path d="M4.41 11.9A6.04 6.04 0 014.1 10c0-.66.11-1.3.31-1.9V5.5H1.08A10 10 0 000 10c0 1.6.38 3.12 1.08 4.5l3.33-2.6z" fill="#FBBC05"/>
+              <path d="M10 3.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C14.95.99 12.7 0 10 0A10 10 0 001.08 5.5l3.33 2.6C5.2 5.74 7.4 3.98 10 3.98z" fill="#EA4335"/>
+            </svg>
+          )}
+          {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+        </button>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 border-t border-zinc-800" />
+          <span className="text-xs uppercase tracking-widest text-zinc-600">or</span>
+          <div className="flex-1 border-t border-zinc-800" />
+        </div>
+
+        {/* Email / Password form */}
         <div className="space-y-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5">
 
           {isSigningUp && (
