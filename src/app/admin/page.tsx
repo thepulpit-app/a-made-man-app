@@ -33,7 +33,7 @@ export default function AdminPage() {
   const { user, loading, initialized } = useAuth()
   const router = useRouter()
 
-  const adminEmails = ['topeajijola@hotmail.com']
+  const adminEmails = ['topeajijola@hotmail.com', 'myteepie@gmail.com', 'salamiabiodun112@gmail.com']
 
   const [activeTab, setActiveTab] = useState<'principles' | 'media' | 'prompts' | 'push'>('principles')
 

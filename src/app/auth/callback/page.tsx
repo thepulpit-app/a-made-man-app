@@ -4,16 +4,11 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 
-// This page handles the redirect back from Google after OAuth
-// Supabase automatically exchanges the code for a session
-// We then create a profile if one doesn't exist yet
-
 export default function AuthCallbackPage() {
   const router = useRouter()
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Get the session Supabase set after the OAuth redirect
       const { data: { session }, error } = await supabase.auth.getSession()
 
       if (error || !session) {
@@ -23,28 +18,34 @@ export default function AuthCallbackPage() {
 
       const user = session.user
 
-      // Check if profile already exists
+      // Build display name from Google metadata
+      const displayName =
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split('@')[0] ||
+        'A Made Man'
+
+      // Check if profile exists AND has a display name
       const { data: existingProfile } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, display_name')
         .eq('id', user.id)
         .maybeSingle()
 
-      // Create profile if this is a new Google user
       if (!existingProfile) {
-        // Use Google display name if available, fall back to email prefix
-        const displayName =
-          user.user_metadata?.full_name ||
-          user.user_metadata?.name ||
-          user.email?.split('@')[0] ||
-          'A Made Man'
-
+        // New user — create full profile
         await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email,
           display_name: displayName,
           streak_count: 1,
         })
+      } else if (!existingProfile.display_name) {
+        // Profile exists but display_name is null — update it
+        await supabase
+          .from('profiles')
+          .update({ display_name: displayName })
+          .eq('id', user.id)
       }
 
       router.replace('/dashboard')
@@ -53,7 +54,6 @@ export default function AuthCallbackPage() {
     handleCallback()
   }, [router])
 
-  // Show nothing while processing — redirect happens fast
   return (
     <main className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center space-y-4">

@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/useAuth'
 import BottomNav from '../../components/BottomNav'
 
-const ADMIN_EMAILS = ['topeajijola@hotmail.com']
+const ADMIN_EMAILS = ['topeajijola@hotmail.com', 'myteepie@gmail.com', 'salamiabiodun112@gmail.com']
 
 export default function MorePage() {
   const { user } = useAuth()

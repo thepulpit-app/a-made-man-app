@@ -26,7 +26,7 @@ type DailySignup = {
   count: number
 }
 
-const ADMIN_EMAILS = ['topeajijola@hotmail.com']
+const ADMIN_EMAILS = ['topeajijola@hotmail.com', 'myteepie@gmail.com', 'salamiabiodun112@gmail.com']
 
 function StatCard({ label, value, sub, accent = false }: {
   label: string; value: number | string; sub?: string; accent?: boolean
