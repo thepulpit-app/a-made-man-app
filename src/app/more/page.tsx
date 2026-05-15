@@ -113,6 +113,16 @@ export default function MorePage() {
           <p className="text-sm text-zinc-400">{user?.email}</p>
         </div>
 
+        {/* Legal links */}
+        <div className="flex gap-6 justify-center border-t border-zinc-800 pt-6">
+          <Link href="/privacy" className="text-xs text-zinc-600 hover:text-zinc-400 underline">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="text-xs text-zinc-600 hover:text-zinc-400 underline">
+            Terms of Service
+          </Link>
+        </div>
+
         {/* Logout */}
         <button
           onClick={async () => {
