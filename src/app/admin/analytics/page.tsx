@@ -75,8 +75,6 @@ export default function AnalyticsPage() {
       { count: totalReflections },
       { count: totalPods },
       { count: totalPodMembers },
-      { count: active7 },
-      { count: active30 },
     ] = await Promise.all([
       supabase.from('push_subscriptions').select('id', { count: 'exact', head: true }),
       supabase.from('community_posts').select('id', { count: 'exact', head: true }),
@@ -85,8 +83,6 @@ export default function AnalyticsPage() {
       supabase.from('saved_reflections').select('id', { count: 'exact', head: true }),
       supabase.from('pods').select('id', { count: 'exact', head: true }),
       supabase.from('pod_members').select('id', { count: 'exact', head: true }),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('updated_at', weekStart),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('updated_at', monthStart),
     ])
 
     setStats({
@@ -101,8 +97,8 @@ export default function AnalyticsPage() {
       totalReflections: totalReflections || 0,
       totalPods: totalPods || 0,
       totalPodMembers: totalPodMembers || 0,
-      activeUsers7Days: active7 || 0,
-      activeUsers30Days: active30 || 0,
+      activeUsers7Days: authData.active7 || 0,
+      activeUsers30Days: authData.active30 || 0,
     })
 
     setDailySignups(authData.dailySignups || [])

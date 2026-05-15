@@ -41,7 +41,24 @@ export async function GET() {
       dailySignups.push({ date: label, count })
     }
 
-    return NextResponse.json({ totalUsers, newToday, newWeek, newMonth, dailySignups })
+    // Active users — based on last_sign_in_at from auth.users
+    const active7 = authUsers.users.filter(u =>
+      u.last_sign_in_at && u.last_sign_in_at >= weekStart
+    ).length
+
+    const active30 = authUsers.users.filter(u =>
+      u.last_sign_in_at && u.last_sign_in_at >= monthStart
+    ).length
+
+    return NextResponse.json({
+      totalUsers,
+      newToday,
+      newWeek,
+      newMonth,
+      active7,
+      active30,
+      dailySignups,
+    })
   } catch (error: any) {
     console.error('[admin/stats]', error?.message || error)
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
