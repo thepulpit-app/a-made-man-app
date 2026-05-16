@@ -16,13 +16,12 @@ export default function MorePage() {
 
   const menuItems = [
     {
-      label: 'Media Library',
-      description: 'Conversations, sessions and studio content',
-      href: '/resources',
+      label: 'Brotherhood Feed',
+      description: 'Posts, encouragement and accountability',
+      href: '/community',
       icon: (
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-          <rect x="2" y="4" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M9 8.5l5 2.5-5 2.5V8.5z" fill="currentColor"/>
+          <path d="M20 2H2v14h6l3 4 3-4h6V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
         </svg>
       ),
     },

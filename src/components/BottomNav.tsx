@@ -53,17 +53,12 @@ const navItems = [
     ),
   },
   {
-    label: 'Community',
-    href: '/community',
+    label: 'Media',
+    href: '/resources',
     icon: (active: boolean) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path
-          d="M20 2H2v14h6l3 4 3-4h6V2z"
-          stroke="currentColor"
-          strokeWidth={active ? '2' : '1.5'}
-          fill={active ? 'currentColor' : 'none'}
-          strokeLinejoin="round"
-        />
+        <rect x="2" y="4" width="18" height="14" rx="2" stroke="currentColor" strokeWidth={active ? '2' : '1.5'} fill={active ? 'currentColor' : 'none'}/>
+        <path d="M9 8.5l5 2.5-5 2.5V8.5z" fill={active ? 'white' : 'currentColor'}/>
       </svg>
     ),
   },
